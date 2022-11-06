@@ -1,0 +1,34 @@
+version: "3.9"
+services:
+  grafana:
+    image: grafana/grafana-oss
+    container_name: grafana
+    restart: unless-stopped
+    volumes:
+      - grafana_storage:/var/lib/grafana
+    ports:
+      - "3000:3000"
+
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+
+  telegraf:
+    image: telegraf
+    container_name: telegraf
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+      - grafana
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf
+
+volumes:
+  grafana_storage:
+    external: true

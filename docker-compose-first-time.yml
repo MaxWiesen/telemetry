@@ -1,0 +1,46 @@
+version: "3.9"
+services:
+  grafana:
+    image: grafana/grafana-oss
+    container_name: grafana
+    restart: unless-stopped
+    volumes:
+      - grafana_storage:/var/lib/grafana
+    ports:
+      - "3000:3000"
+
+  telegraf_conf_gen:
+    image: ubuntu:20.04
+    container_name: telegraf_conf_gen
+    depends_on:
+      - grafana
+    volumes:
+      - type: bind
+        source: .
+        target: /LHR
+    entrypoint: bash "/LHR/telegraf_conf_gen/run.sh"
+
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+
+  telegraf:
+    image: telegraf
+    container_name: telegraf
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+      - grafana
+      - telegraf_conf_gen
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf
+
+volumes:
+  grafana_storage:
+    external: true
