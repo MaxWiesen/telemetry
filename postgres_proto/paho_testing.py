@@ -1,6 +1,5 @@
 from paho.mqtt import client as mqtt_client
 import time
-import datetime
 import math
 import json
 
