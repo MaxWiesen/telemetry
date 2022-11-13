@@ -1,5 +1,19 @@
 version: "3.9"
 services:
+  db:
+    image: postgres
+    container_name: db
+    restart: unless-stopped
+    volumes:
+      - telemetry_db:/var/lib/postgresql/data
+      - ./db_init_test.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      POSTGRES_DB: telemetry
+      POSTGRES_USER: electric
+      POSTGRES_PASSWORD: 2fast2quick
+    ports:
+      - "5432:5432"
+
   grafana:
     image: grafana/grafana-oss
     container_name: grafana
@@ -8,17 +22,6 @@ services:
       - grafana_storage:/var/lib/grafana
     ports:
       - "3000:3000"
-
-  telegraf_conf_gen:
-    image: ubuntu:20.04
-    container_name: telegraf_conf_gen
-    depends_on:
-      - grafana
-    volumes:
-      - type: bind
-        source: .
-        target: /LHR
-    entrypoint: bash "/LHR/telegraf_conf_gen/run.sh"
 
   mosquitto:
     image: eclipse-mosquitto
@@ -37,10 +40,15 @@ services:
     depends_on:
       - mosquitto
       - grafana
-      - telegraf_conf_gen
+      - db
     volumes:
-      - ./telegraf.conf:/etc/telegraf/telegraf.conf
+      - type: bind
+        source: ./telegraf_conf_gen
+        target: /LHR/telegraf_conf_gen
+    entrypoint: bash "/LHR/telegraf_conf_gen/run.sh"
 
 volumes:
   grafana_storage:
+    external: true
+  telemetry_db:
     external: true
