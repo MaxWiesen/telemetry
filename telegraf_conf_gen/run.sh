@@ -1,18 +1,19 @@
 #!/bin/bash
 ##################################
 ###       LHR DATA STACK       ###
-###  FIRST-TIME CONFIGURATION  ###
+###    FIRST-TIME TELEGRAF     ###
+###       CONFIGURATION        ###
 ###     DOCKER DEPLOYMENT      ###
 ###   Author: Max Wiesenfeld   ###
 ##################################
 
-# Step 1: Installing curl to the Ubuntu image
+# Step 1: Installing curl to the container
 echo "Installing curl..."
 apt update && apt install curl -y
 
-# Step 2: Creating service account on grafana image and retrieving its ID
-# (with some black magic fuckery--don't ask me how I did this. Sometimes
-# I sit down blackout and a few hours later something works and this was one of those times)
+# Step 2: Creating service account on grafana container and retrieving its ID
+# (with some black magic fuckery--it has been several months and I have no clue what I did with
+# the "2>&1" or regex to make this work. Sorry if you have to rework this, but it works as is.)
 echo "Creating and Retrieving Service Account ID..."
 service_account_id=$(curl -X POST http://admin:admin@grafana:3000/api/serviceaccounts \
                       -H 'Content-Type: application/json' \
@@ -29,6 +30,7 @@ token=$(curl -X POST http://admin:admin@grafana:3000/api/serviceaccounts/"${serv
 # Step 4: Creating telegraf.conf file and outputting to bind mounted permanent storage
 echo "Creating telegraf.conf file..."
 
+# Remove old conf file if there was one
 if [[ -f /LHR/telegraf_conf_gen/telegraf.conf ]]
 then
   rm -f /LHR/telegraf_conf_gen/telegraf.conf
@@ -75,4 +77,5 @@ echo "API Token: $token"
 
 cp /LHR/telegraf_conf_gen/telegraf.conf /etc/telegraf/telegraf.conf
 
+# Step 5: Run telegraf command to resume normal startup
 telegraf
