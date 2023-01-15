@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     volumes:
       - telemetry_db:/var/lib/postgresql/data
-      - ./db_init_test.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./db_init_v1.0.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
       POSTGRES_DB: telemetry
       POSTGRES_USER: electric
