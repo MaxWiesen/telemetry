@@ -3,6 +3,7 @@
 -- PostgreSQL version: 13.0
 -- Project Site: pgmodeler.io
 -- Model Author: Max Wiesenfeld
+-- Project Version: v1.2.0
 -- object: grafana | type: ROLE --
 -- DROP ROLE IF EXISTS grafana;
 CREATE ROLE grafana WITH 
@@ -11,8 +12,8 @@ CREATE ROLE grafana WITH
 	CONNECTION LIMIT 5;
 -- ddl-end --
 
--- object: electric | type: ROLE --
--- DROP ROLE IF EXISTS electric;
+-- -- object: electric | type: ROLE --
+-- -- DROP ROLE IF EXISTS electric;
 -- CREATE ROLE electric WITH
 -- 	SUPERUSER
 -- 	CREATEDB
@@ -22,18 +23,25 @@ CREATE ROLE grafana WITH
 -- 	REPLICATION
 -- 	BYPASSRLS
 -- 	ENCRYPTED PASSWORD '2fast2quick';
+-- -- ddl-end --
+--
+-- object: analysis | type: ROLE --
+-- DROP ROLE IF EXISTS analysis;
+CREATE ROLE analysis WITH
+	LOGIN
+	ENCRYPTED PASSWORD 'north_dakota';
 -- ddl-end --
 
 
--- Database creation must be performed outside a multi lined SQL file. 
+-- Database creation must be performed outside a multi lined SQL file.
 -- These commands were put in this file only as a convenience.
--- 
--- object: telemetry | type: DATABASE --
--- DROP DATABASE IF EXISTS telemetry;
+--
+-- -- object: telemetry | type: DATABASE --
+-- -- DROP DATABASE IF EXISTS telemetry;
 -- CREATE DATABASE telemetry
 -- 	OWNER = electric;
--- ddl-end --
-
+-- -- ddl-end --
+--
 
 -- object: public.event | type: TABLE --
 -- DROP TABLE IF EXISTS public.event CASCADE;
@@ -81,6 +89,8 @@ COMMENT ON COLUMN public.event.drive_day IS E'Joins drive_day table';
 COMMENT ON COLUMN public.event.driver IS E'Represents event''s driver''s name';
 -- ddl-end --
 COMMENT ON COLUMN public.event.location IS E'Corresponds to lut_location for location lookup';
+-- ddl-end --
+COMMENT ON COLUMN public.event.event_index IS E'Represents which number event this is in the work day.';
 -- ddl-end --
 COMMENT ON COLUMN public.event.event_type IS E'Joins lut_event_type for event context';
 -- ddl-end --
@@ -322,6 +332,10 @@ ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE public.event ADD CONSTRAINT lut_event_type_fk FOREIGN KEY (type_id_lut_event_type)
 REFERENCES public.lut_event_type (type_id) MATCH FULL
 ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: timezone | type: Generic SQL Object --
+SET TIME ZONE 'CST';
 -- ddl-end --
 
 

@@ -26,7 +26,8 @@ CAUTION: Do not modify this file unless you know what you are doing.
  login="true"
  bypassrls="true"
  encrypted="true"
- password="2fast2quick">
+ password="2fast2quick"
+ sql-disabled="true">
 </role>
 
 <role name="analysis"
@@ -35,7 +36,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
  password="north_dakota">
 </role>
 
-<database name="telemetry" is-template="false" allow-conns="true">
+<database name="telemetry" is-template="false" allow-conns="true" sql-disabled="true">
 	<role name="electric"/>
 </database>
 
@@ -523,5 +524,9 @@ CAUTION: Do not modify this file unless you know what you are doing.
 		<position x="16.3398" y="-15.4945"/>
 	</label>
 </relationship>
+
+<genericsql name="timezone">
+	<definition><![CDATA[SET TIME ZONE 'CST';]]></definition>
+</genericsql>
 
 </dbmodel>
