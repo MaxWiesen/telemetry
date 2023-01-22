@@ -29,6 +29,12 @@ CAUTION: Do not modify this file unless you know what you are doing.
  password="2fast2quick">
 </role>
 
+<role name="analysis"
+ login="true"
+ encrypted="true"
+ password="north_dakota">
+</role>
+
 <database name="telemetry" is-template="false" allow-conns="true">
 	<role name="electric"/>
 </database>
@@ -72,6 +78,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	</column>
 	<column name="event_index">
 		<type name="smallint" length="0"/>
+		<comment><![CDATA[Represents which number event this is in the work day.]]></comment>
 	</column>
 	<column name="event_type">
 		<type name="smallint" length="0"/>
