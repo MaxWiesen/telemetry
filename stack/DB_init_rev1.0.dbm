@@ -115,7 +115,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<column name="power_output">
 		<type name="smallint" length="0"/>
 	</column>
-	<column name="toque_output">
+	<column name="torque_output">
 		<type name="smallint" length="0"/>
 	</column>
 	<column name="shock_dampening">
