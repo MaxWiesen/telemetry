@@ -37,8 +37,8 @@ then
 fi
 
 echo -n "[agent]
-  interval = \"10ms\"
-  flush_interval = \"10ms\"
+  interval = \"25ms\"
+  flush_interval = \"25ms\"
   omit_hostname = true
 
 [[outputs.file]]
@@ -63,7 +63,7 @@ echo -e '"\n
   persistent_session = true
   client_id = "telegraf"
   data_format = "json"
-  json_time_key = "creation_time"
+  json_time_key = "time"
   json_time_format = "unix_us"
 
 [[processors.converter]]
