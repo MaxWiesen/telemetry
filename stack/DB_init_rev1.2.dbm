@@ -317,7 +317,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 		<type name="boolean" length="0"/>
 	</column>
 	<column name="bms_cells_v">
-		<type name="real" length="0" dimension="2"/>
+		<type name="real" length="0" dimension="1"/>
 	</column>
 	<column name="fan_speed">
 		<type name="bigint" length="0"/>
