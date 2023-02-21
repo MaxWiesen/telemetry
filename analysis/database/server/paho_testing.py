@@ -2,7 +2,6 @@ import numpy as np
 from paho.mqtt import client as mqtt_client
 from numpy.random import default_rng
 import time
-import math
 import json
 import requests
 
@@ -150,8 +149,8 @@ class DataTester:
 
 
 def main():
-    client = mqtt_client.Client("paho-client")
-    client.connect('localhost')
+    client = mqtt_client.Client('paho-client')
+    client.connect('10.0.0.21')
     test = DataTester()
     count = 1
     table = 'drive_day'
@@ -160,7 +159,7 @@ def main():
         # obj = {'val': math.sin(time.time() * .5)}
         data = {KPI: test.get_random_data(vals['type'], 1, True, low=vals['range'][0], high=vals['range'][1]) if 'range' in vals else test.get_random_data(vals['type'], 1, True) for KPI, vals in test.table_column_specs[table].items()}
         data.update({key: int(val) for key, val in data.items() if type(val) is np.int64})
-
+        print(data)
         client.publish('dynamics', json.dumps(data, indent=4))
         print(f'Pushing values ({data}) now...')
         count += 1
