@@ -5,6 +5,7 @@
 ###       CONFIGURATION        ###
 ###     DOCKER DEPLOYMENT      ###
 ###   Author: Max Wiesenfeld   ###
+###        Version 1.0         ###
 ##################################
 
 # Step 1: Installing curl to the container
