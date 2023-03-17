@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block head %}
+    <title>Telemetry Injection Tool</title>
+{% endblock %}
+
+
+{% block body %}
+    <div>
+        <form action="/new_event/" method="POST">
+            {# Driver Name #}
+            <label for="driver_name">Choose a driver:</label>
+            <select name="driver_name" id="driver_name">
+                <option value="1">Rylan Hanks</option>
+                <option value="2">Dylan Hammerback</option>
+                <option value="3">South Dakota</option>
+                <option value="4">Other</option>
+            </select><br>
+
+            {# Event Type #}
+            <label for="event_type">Choose an event type:</label>
+            <select name="event_type" id="event_type">
+                <option value="1">Endurance</option>
+                <option value="2">Autocross</option>
+                <option value="3">Skidpad</option>
+                <option value="4">Straight Line Acceleration</option>
+                <option value="5">Straight Line Breaking</option>
+                <option value="6">Other</option>
+            </select><br>
+
+            {# Car Weight #}
+            <label for="car_weight">Car Weight:</label>
+            <input type="number" id="car_weight" name="car_weight"><br>
+
+            {# Tow Angle #}
+            <label for="tow_angle">Tow Angle:</label>
+            <input type="number" id="tow_angle" name="tow_angle"><br>
+
+            {# Camber #}
+            <label for="camber">Camber:</label>
+            <input type="number" id="camber" name="camber"><br>
+
+            {# Ride Height #}
+            <label for="ride_height">Ride Height:</label>
+            <input type="number" id="ride_height" name="ride_height"><br>
+
+            {# Ackerman Adjustment #}
+            <label for="ackerman_adjustment">Ackerman Adjustment:</label>
+            <input type="number" id="ackerman_adjustment" name="ackerman_adjustment"><br>
+
+            {# Tire Pressure #}
+            <label for="tire_pressure">Tire Pressure:</label>
+            <input type="number" id="tire_pressure" name="tire_pressure"><br>
+
+            {# Blade Stiffness #}
+            <label for="blade_arb_stiffness">Blade Stiffness:</label>
+            <input type="number" id="blade_arb_stiffness" name="blade_arb_stiffness"><br>
+
+            {# Power Output #}
+            <label for="power_output">Power Output:</label>
+            <input type="number" id="power_output" name="power_output"><br>
+
+            {# Torque Output #}
+            <label for="torque_output">Torque Output:</label>
+            <input type="number" id="torque_output" name="torque_output"><br>
+
+            {# Shock Dampening #}
+            <label for="shock_dampening">Shock Dampening:</label>
+            <input type="number" id="shock_dampening" name="shock_dampening"><br>
+
+            {# Front Wing On #}
+            <input type="checkbox" id="front_wing_on" name="front_wing_on" value="1">
+            <label for="front_wing_on"> Front Wing On</label><br>
+
+            {# Regen On #}
+            <input type="checkbox" id="regen_on" name="regen_on" value="1">
+            <label for="regen_on"> Regen On</label><br>
+
+            {# Rear Wing On #}
+            <input type="checkbox" id="rear_wing_on" name="rear_wing_on" value="1">
+            <label for="rear_wing_on"> Rear Wing On</label><br>
+
+            {# Undertray On #}
+            <input type="checkbox" id="undertray_on" name="undertray_on" value="1">
+            <label for="undertray_on"> Undertray On</label><br>
+
+            {# Part Revisions #}
+            <input type=file name=part_revs><br>
+
+            <input type="submit" value="Submit"><br>
+        </form>
+    </div>
+{% endblock %}
