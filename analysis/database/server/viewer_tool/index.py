@@ -12,14 +12,14 @@ def index():
     else:
         return render_template('index.html')
 
-@app.route('/dev/', methods=['GET', 'POST'])
-def dev_index():
-    if request.method == 'POST':
-        inputs = request.form
-        print(inputs)
-        return 'On Dev'
-    else:
-        return render_template('dev.html')
+# @app.route('/dev/', methods=['GET', 'POST'])
+# def dev_index():
+#     if request.method == 'POST':
+#         inputs = request.form
+#         print(inputs)
+#         return 'On Dev'
+#     else:
+#         return render_template('dev.html')
 
 
 if __name__ == '__main__':
