@@ -5,6 +5,7 @@ import time
 import json
 import requests
 
+
 class DataTester:
     """
     Class for testing database with random values in correct data types.

@@ -7,8 +7,36 @@
 
 {% block body %}
     <div>
-        <form action="/" method="POST">
-            <input type="text" name="Driver Name" id="driver_name">
+        <h1>Create New Drive Day</h1>
+        <form action="/new_drive_day/" method="GET">
+            {# Location #}
+            <label for="location">Choose an event type:</label>
+            <select name="location" id="location">
+                <option value="1">Pickle - Innovation Blvd</option>
+                <option value="2">Pickle - Front Lot</option>
+                <option value="3">Pickle - Other Lot</option>
+                <option value="4">COTA - Lot J</option>
+                <option value="5">COTA - Lot H</option>
+                <option value="6">COTA - Go Kart Track</option>
+                <option value="7">Other</option>
+            </select>
+
+            {# Driving Conditions #}
+            <label for="conditions">Driving Conditions:</label>
+            <input type="text" id="conditions" name="conditions">
+
+            <input type="submit" value="Create Drive Day">
+        </form>
+    </div>
+
+    <div>
+        <h1>Add Event To Existing Drive Day</h1>
+        <form action="/new_event/" method="GET">
+            {# Power Output #}
+            <label for="drive_day_id">Existing Drive Day ID:</label>
+            <input type="number" id="drive_day_id" name="drive_day_id">
+
+            <input type="submit" value="Create Event">
         </form>
     </div>
 {% endblock %}
