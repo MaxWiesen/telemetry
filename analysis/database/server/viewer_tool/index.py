@@ -12,7 +12,7 @@ def index():
 @app.route('/new_drive_day/', methods=['GET'])
 def new_drive_day():
     if request.method == 'GET':
-
+        Injector.create_drive_day(**request.args)
         return redirect('/new_event/')
     else:
         return 'How did you even get here?'
