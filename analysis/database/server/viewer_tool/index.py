@@ -1,5 +1,9 @@
-from flask import Flask, render_template, request, redirect
+import time
+
+from flask import Flask, render_template, url_for, request, redirect
+
 from analysis.database.server.one_time_injection import Injector
+from analysis.database.sql_utils.db_handler import DBHandler
 
 app = Flask(__name__)
 
@@ -12,17 +16,32 @@ def index():
 @app.route('/new_drive_day/', methods=['GET'])
 def new_drive_day():
     if request.method == 'GET':
-        Injector.create_drive_day(**request.args)
-        return redirect('/new_event/')
+        day_id = Injector.create_drive_day(**request.args)
+        return redirect(url_for('.new_event', day_id=day_id, method='new'))
     else:
         return 'How did you even get here?'
 
 
-@app.route('/new_event/', methods=['GET', 'POST'])
+@app.route('/new_event/', methods=['GET'])
 def new_event():
-
-    # TODO: Check if drive_day_id exists in DB
+    cnx = DBHandler().connect()
+    try:
+        cur = cnx.cursor()
+        cur.execute(f'SELECT day_id WHERE day_id = {request.args["day_id"]}')
+        row = cur.fetchone()
+        if not row and request.args['method'] == 'existing':
+            return 'Drive Day ID not found in database. Try again.' + render_template('index.html')
+        elif not row and request.args['method'] == 'new':
+            return 'Error: Attempt to create new drive day failed. ID not found after creation. Inform developer.'
+    except Exception as e:
+        raise e
+    finally:
+        DBHandler.kill(cnx)
     return render_template('input_screen.html')
+
+# @app.route('/create_event/', methods=['POST'])
+# def create_event():
+
 
 # @app.route('/dev/', methods=['GET', 'POST'])
 # def dev_index():
