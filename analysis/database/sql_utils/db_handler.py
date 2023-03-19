@@ -29,7 +29,7 @@ class TableSpecs:
             # 'camber': {'type': np.float32, 'range': (0, 0)},
             # 'ride_height': {'type': np.float32, 'range': (0, 0)},
             # 'ackerman_adjustment': {'type': np.float32, 'range': (0, 0)},
-            'tire_pressue': {'type': np.float32, 'range': (10, 50)},
+            'tire_pressure': {'type': np.float32, 'range': (10, 50)},
             # 'blade_arb_stiffness': {'type': np.float32, 'range': (0, 0)}
             # 'power_output': {'type': int, 'range': ()},
             # 'torque_output':  {'type': int, 'range': ()},
@@ -90,6 +90,7 @@ class TableSpecs:
         }
     }
 
+
 class DBHandler:
     DB_CONFIG = {
         'PROD': {
@@ -112,9 +113,9 @@ class DBHandler:
                                password=self.DB_CONFIG[target]['user'][user])
 
     @staticmethod
-    def kill(conn):
-        if not conn.closed:
-            conn.close()
+    def kill(cnx):
+        if not cnx.closed:
+            cnx.close()
         else:
             logging.info('An attempt was made to kill a closed connection.')
 
@@ -122,7 +123,3 @@ class DBHandler:
 if __name__ == '__main__':
     conn = DBHandler().connect()
     print(f'Conn closed 1: {conn.closed}')
-    DBHandler.kill(conn)
-    print(f'Conn closed 2: {conn.closed}')
-    conn.close()
-    print(f'Conn closed 3: {conn.closed}')
