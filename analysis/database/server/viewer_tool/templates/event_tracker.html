@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block head %}
+    <title>Telemetry Injection Tool</title>
+{% endblock %}
+
+{% block body %}
+    <div>
+        <h1>Create New Drive Day</h1>
+        <form action="/start_event/" method="POST">
+            <input type="submit" value="Start Event">
+        </form>
+    </div>
+{% endblock %}
