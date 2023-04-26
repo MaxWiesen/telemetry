@@ -18,7 +18,8 @@ CAUTION: Do not modify this file unless you know what you are doing.
  inherit="true"
  login="true"
  bypassrls="true"
- password="2fast2quick">
+ password="2fast2quick"
+ sql-disabled="true">
 </role>
 
 <role name="grafana"
@@ -45,7 +46,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<role name="electric"/>
 	<position x="0" y="20"/>
 	<column name="day_id" not-null="true">
-		<type name="smallint" length="0"/>
+		<type name="smallserial" length="0"/>
 	</column>
 	<column name="date" not-null="true">
 		<type name="date" length="0"/>
@@ -71,7 +72,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<column name="driver_name" not-null="true">
 		<type name="text" length="0"/>
 	</column>
-	<column name="driver_weight" not-null="true">
+	<column name="driver_weight">
 		<type name="smallint" length="0"/>
 	</column>
 	<constraint name="lut_driver_pk" type="pk-constr" table="public.lut_driver">
@@ -165,7 +166,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<role name="electric"/>
 	<position x="0" y="200"/>
 	<column name="event_id" not-null="true">
-		<type name="smallint" length="0"/>
+		<type name="smallserial" length="0"/>
 	</column>
 	<column name="day_id" not-null="true">
 		<type name="smallint" length="0"/>
@@ -191,7 +192,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<column name="event_type" not-null="true">
 		<type name="smallint" length="0"/>
 	</column>
-	<column name="event_index">
+	<column name="event_index" default-value="public.get_event_index(car_id, day_id)" generated="true">
 		<type name="smallint" length="0"/>
 	</column>
 	<column name="car_weight">
@@ -209,13 +210,13 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<column name="ackerman_adjustment">
 		<type name="real" length="0"/>
 	</column>
-	<column name="power_output">
-		<type name="integer" length="0"/>
-	</column>
-	<column name="torque_output">
+	<column name="shock_dampening">
 		<type name="smallint" length="0"/>
 	</column>
-	<column name="shock_dampening">
+	<column name="power_limit">
+		<type name="integer" length="0"/>
+	</column>
+	<column name="torque_limit">
 		<type name="smallint" length="0"/>
 	</column>
 	<column name="fr_pressure">
@@ -233,10 +234,10 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<column name="front_wing_on">
 		<type name="boolean" length="0"/>
 	</column>
-	<column name="regen_on">
+	<column name="rear_wing_on">
 		<type name="boolean" length="0"/>
 	</column>
-	<column name="rear_wing_on">
+	<column name="regen_on">
 		<type name="boolean" length="0"/>
 	</column>
 	<column name="undertray_on">
@@ -346,7 +347,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	</column>
 </table>
 
-<table name="electronics" layers="0" collapse-mode="2" max-obj-count="6" z-value="0">
+<table name="electronics" layers="0" collapse-mode="2" max-obj-count="7" z-value="0">
 	<schema name="public"/>
 	<role name="electric"/>
 	<position x="1060" y="340"/>
@@ -365,7 +366,38 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<column name="ls_contactor_on">
 		<type name="boolean" length="0"/>
 	</column>
+	<column name="lv_battery_status">
+		<type name="smallint" length="0"/>
+	</column>
 </table>
+
+<function name="get_event_index"
+		window-func="false"
+		returns-setof="false"
+		behavior-type="STRICT"
+		function-type="IMMUTABLE"
+		security-type="SECURITY INVOKER"
+		parallel-type="PARALLEL UNSAFE"
+		execution-cost="1"
+		row-amount="0">
+	<schema name="public"/>
+	<role name="electric"/>
+	<language name="plpgsql"/>
+	<return-type>
+	<type name="smallint" length="0"/>
+	</return-type>
+	<parameter name="car" in="true">
+		<type name="smallint" length="0"/>
+	</parameter>
+	<parameter name="day" in="true">
+		<type name="smallint" length="0"/>
+	</parameter>
+	<definition> <![CDATA[DECLARE @ind smallint;
+SELECT @ind = COUNT(event_id)
+FROM event
+WHERE car_id = car AND day_id = day;
+RETURN @ind;]]> </definition>
+</function>
 
 <constraint name="FK_day_id" type="fk-constr" comparison-type="MATCH SIMPLE"
 	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.drive_day" table="public.event">
@@ -397,11 +429,6 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<columns names="type_id" ref-type="dst-columns"/>
 </constraint>
 
-<relationship name="rel_event_drive_day" type="relfk" layers="0"
-	 src-table="public.event"
-	 dst-table="public.drive_day" reference-fk="FK_day_id"
-	 src-required="false" dst-required="true"/>
-
 <relationship name="rel_event_lut_car" type="relfk" layers="0"
 	 src-table="public.event"
 	 dst-table="public.lut_car" reference-fk="FK_car_id"
@@ -420,6 +447,11 @@ CAUTION: Do not modify this file unless you know what you are doing.
 <relationship name="rel_event_lut_event_type" type="relfk" layers="0"
 	 src-table="public.event"
 	 dst-table="public.lut_event_type" reference-fk="FK_event_type"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_event_drive_day" type="relfk" layers="0"
+	 src-table="public.event"
+	 dst-table="public.drive_day" reference-fk="FK_day_id"
 	 src-required="false" dst-required="true"/>
 
 </dbmodel>
