@@ -7,8 +7,12 @@
 {% block body %}
     <div>
         <h1>Create New Drive Day</h1>
-        <form action="/start_event/" method="POST">
-            <input type="submit" value="Start Event">
+        <form action="/set_event_time/" method="POST">
+            {# Hidden Event ID passthrough #}
+            <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
+
+            <button type="submit" id="start" name="start" value="start">Start Time</button>
+            <button type="submit" id="end" name="end" value="end">End Time</button>
         </form>
     </div>
 {% endblock %}
