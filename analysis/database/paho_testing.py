@@ -5,7 +5,7 @@ import time
 import json
 import requests
 
-from analysis.database.sql_utils.db_handler import TableSpecs
+from analysis.sql_utils.db_handler import TableSpecs
 
 
 class DataTester:
