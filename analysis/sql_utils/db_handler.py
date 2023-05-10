@@ -2,29 +2,30 @@ import pandas as pd
 import psycopg
 import pickle
 import time
-import numpy as np
+import logging
 import datetime
 
 
-class TableSpecs:
-    def __init__(self, verbose_output=False, force=False):
+def get_table_column_specs(force=False, verbose=False):
         now = time.time()
-        last_update, self.table_column_specs = pickle.load(open('DB_description.pkl', 'rb'))
+        last_update, table_column_specs = pickle.load(open('DB_description.pkl', 'rb'))
         if force or now - last_update > 86_400 * 1:     # Days since last update
-            self.table_column_specs = self.update_table_column_specs()
-            pickle.dump((now, self.table_column_specs), open('DB_description.pkl', 'wb'))
-
-    def update_table_column_specs(self):
-        with DBHandler().connect(user='electric') as cnx:
-            with cnx.cursor() as cur:
-                cur.execute("""SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
-                               FROM INFORMATION_SCHEMA.COLUMNS 
-                               WHERE TABLE_SCHEMA = 'public'""")
-                data = pd.DataFrame(cur.fetchall(), columns=['table_name', 'column_name', 'data_type'])
-                data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'text': str,
-                                        'boolean': bool, 'date': datetime.date, 'ARRAY': list}, inplace=True)
-                return {table: list(zip((table_data := data[data.table_name == table]).column_name,
-                                        table_data.data_type)) for table in data.table_name.unique()}
+            with DBHandler().connect(user='electric') as cnx:
+                with cnx.cursor() as cur:
+                    cur.execute("""SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
+                                   FROM INFORMATION_SCHEMA.COLUMNS 
+                                   WHERE TABLE_SCHEMA = 'public'""")
+                    data = pd.DataFrame(cur.fetchall(), columns=['table_name', 'column_name', 'data_type'])
+                    data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'text': str,
+                                            'boolean': bool, 'date': datetime.date, 'ARRAY': list}, inplace=True)
+                    table_column_specs = {table: list(zip((table_data := data[data.table_name == table]).column_name,
+                                                          table_data.data_type)) for table in data.table_name.unique()}
+            pickle.dump((now, table_column_specs), open('DB_description.pkl', 'wb'))
+            logging.info(f'\t\ttable_column_specs out of date and updated.')
+            if verbose:     # Pretty print table column specs
+                [logging.info(f'\t\t{table}\n' + ''.join([f'\n{col:^20} {str(dtype):^30}' for col, dtype in col_data]) +
+                              '\n') for table, col_data in table_column_specs.items()]
+        return table_column_specs
 
 
 class DBHandler:
@@ -50,4 +51,5 @@ class DBHandler:
 
 
 if __name__ == '__main__':
-    TableSpecs()
+    logging.basicConfig(level=logging.NOTSET)
+    get_table_column_specs(force=True, verbose=True)
