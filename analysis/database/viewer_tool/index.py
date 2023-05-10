@@ -1,13 +1,11 @@
 import logging
 
 from flask import Flask, render_template, url_for, request, redirect
-from flask_socketio import SocketIO, emit
 
 from analysis.database.one_time_injection import Injector
 from analysis.sql_utils.db_handler import DBHandler
 
 app = Flask(__name__)
-socketio = SocketIO(app)
 
 @app.route('/', methods=['GET'])
 def index():
@@ -49,4 +47,4 @@ def set_event_time():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
