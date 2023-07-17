@@ -43,6 +43,7 @@ CREATE ROLE analysis WITH
 -- ddl-end --
 
 
+
 SET check_function_bodies = false;
 -- ddl-end --
 
@@ -194,10 +195,10 @@ CREATE TABLE public.event (
 	shock_dampening smallint,
 	power_limit integer,
 	torque_limit smallint,
-	fr_pressure real,
-	fl_pressure real,
-	br_pressure real,
-	bl_pressure real,
+	frw_pressure real,
+	flw_pressure real,
+	brw_pressure real,
+	blw_pressure real,
 	front_wing_on boolean,
 	rear_wing_on boolean,
 	regen_on boolean,
@@ -211,6 +212,7 @@ ALTER TABLE public.event OWNER TO electric;
 -- object: public.dynamics | type: TABLE --
 -- DROP TABLE IF EXISTS public.dynamics CASCADE;
 CREATE TABLE public.dynamics (
+	event_id smallint NOT NULL,
 	"time" bigint NOT NULL,
 	frw_acc double precision[],
 	flw_acc double precision[],
@@ -236,6 +238,7 @@ ALTER TABLE public.dynamics OWNER TO electric;
 -- object: public.power | type: TABLE --
 -- DROP TABLE IF EXISTS public.power CASCADE;
 CREATE TABLE public.power (
+	event_id smallint NOT NULL,
 	"time" bigint NOT NULL,
 	bms_cells_v real[],
 	pack_voltage real,
@@ -258,6 +261,7 @@ ALTER TABLE public.power OWNER TO electric;
 -- object: public.electronics | type: TABLE --
 -- DROP TABLE IF EXISTS public.electronics CASCADE;
 CREATE TABLE public.electronics (
+	event_id smallint NOT NULL,
 	"time" bigint NOT NULL,
 	imd_on boolean,
 	hv_contactor_on boolean,
@@ -269,7 +273,6 @@ CREATE TABLE public.electronics (
 -- ddl-end --
 ALTER TABLE public.electronics OWNER TO electric;
 -- ddl-end --
-
 
 -- object: "FK_day_id" | type: CONSTRAINT --
 -- ALTER TABLE public.event DROP CONSTRAINT IF EXISTS "FK_day_id" CASCADE;
@@ -303,6 +306,27 @@ ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ALTER TABLE public.event DROP CONSTRAINT IF EXISTS "FK_event_type" CASCADE;
 ALTER TABLE public.event ADD CONSTRAINT "FK_event_type" FOREIGN KEY (event_type)
 REFERENCES public.lut_event_type (type_id) MATCH SIMPLE
+ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: "FK_event_id" | type: CONSTRAINT --
+-- ALTER TABLE public.dynamics DROP CONSTRAINT IF EXISTS "FK_event_id" CASCADE;
+ALTER TABLE public.dynamics ADD CONSTRAINT "FK_event_id" FOREIGN KEY (event_id)
+REFERENCES public.event (event_id) MATCH SIMPLE
+ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: "FK_event_id" | type: CONSTRAINT --
+-- ALTER TABLE public.power DROP CONSTRAINT IF EXISTS "FK_event_id" CASCADE;
+ALTER TABLE public.power ADD CONSTRAINT "FK_event_id" FOREIGN KEY (event_id)
+REFERENCES public.event (event_id) MATCH SIMPLE
+ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: "FK_event_id" | type: CONSTRAINT --
+-- ALTER TABLE public.electronics DROP CONSTRAINT IF EXISTS "FK_event_id" CASCADE;
+ALTER TABLE public.electronics ADD CONSTRAINT "FK_event_id" FOREIGN KEY (event_id)
+REFERENCES public.event (event_id) MATCH SIMPLE
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 

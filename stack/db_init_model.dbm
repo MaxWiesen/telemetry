@@ -219,16 +219,16 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<column name="torque_limit">
 		<type name="smallint" length="0"/>
 	</column>
-	<column name="fr_pressure">
+	<column name="frw_pressure">
 		<type name="real" length="0"/>
 	</column>
-	<column name="fl_pressure">
+	<column name="flw_pressure">
 		<type name="real" length="0"/>
 	</column>
-	<column name="br_pressure">
+	<column name="brw_pressure">
 		<type name="real" length="0"/>
 	</column>
-	<column name="bl_pressure">
+	<column name="blw_pressure">
 		<type name="real" length="0"/>
 	</column>
 	<column name="front_wing_on">
@@ -248,10 +248,13 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	</constraint>
 </table>
 
-<table name="dynamics" layers="0" collapse-mode="2" max-obj-count="19" z-value="0">
+<table name="dynamics" layers="0" collapse-mode="2" max-obj-count="20" z-value="0">
 	<schema name="public"/>
 	<role name="electric"/>
 	<position x="380" y="340"/>
+	<column name="event_id" not-null="true">
+		<type name="smallint" length="0"/>
+	</column>
 	<column name="time" not-null="true">
 		<type name="bigint" length="0"/>
 	</column>
@@ -302,10 +305,13 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	</column>
 </table>
 
-<table name="power" layers="0" collapse-mode="2" max-obj-count="15" z-value="0">
+<table name="power" layers="0" collapse-mode="2" max-obj-count="16" z-value="0">
 	<schema name="public"/>
 	<role name="electric"/>
 	<position x="740" y="340"/>
+	<column name="event_id" not-null="true">
+		<type name="smallint" length="0"/>
+	</column>
 	<column name="time" not-null="true">
 		<type name="bigint" length="0"/>
 	</column>
@@ -347,10 +353,13 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	</column>
 </table>
 
-<table name="electronics" layers="0" collapse-mode="2" max-obj-count="7" z-value="0">
+<table name="electronics" layers="0" collapse-mode="2" max-obj-count="8" z-value="0">
 	<schema name="public"/>
 	<role name="electric"/>
-	<position x="1060" y="340"/>
+	<position x="1100" y="340"/>
+	<column name="event_id" not-null="true">
+		<type name="smallint" length="0"/>
+	</column>
 	<column name="time" not-null="true">
 		<type name="bigint" length="0"/>
 	</column>
@@ -429,6 +438,24 @@ RETURN @ind;]]> </definition>
 	<columns names="type_id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="FK_event_id" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.event" table="public.dynamics">
+	<columns names="event_id" ref-type="src-columns"/>
+	<columns names="event_id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="FK_event_id" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.event" table="public.power">
+	<columns names="event_id" ref-type="src-columns"/>
+	<columns names="event_id" ref-type="dst-columns"/>
+</constraint>
+
+<constraint name="FK_event_id" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.event" table="public.electronics">
+	<columns names="event_id" ref-type="src-columns"/>
+	<columns names="event_id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_event_lut_car" type="relfk" layers="0"
 	 src-table="public.event"
 	 dst-table="public.lut_car" reference-fk="FK_car_id"
@@ -452,6 +479,21 @@ RETURN @ind;]]> </definition>
 <relationship name="rel_event_drive_day" type="relfk" layers="0"
 	 src-table="public.event"
 	 dst-table="public.drive_day" reference-fk="FK_day_id"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_dynamics_event" type="relfk" layers="0"
+	 src-table="public.dynamics"
+	 dst-table="public.event" reference-fk="FK_event_id"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_power_event" type="relfk" layers="0"
+	 src-table="public.power"
+	 dst-table="public.event" reference-fk="FK_event_id"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_electronics_event" type="relfk" layers="0"
+	 src-table="public.electronics"
+	 dst-table="public.event" reference-fk="FK_event_id"
 	 src-required="false" dst-required="true"/>
 
 </dbmodel>
