@@ -2,11 +2,15 @@ import numpy as np
 from paho.mqtt import client as mqtt_client
 from numpy.random import default_rng
 import time
+import datetime
 import json
 import requests
+import logging
+import sys
+sys.path.append('~/Documents/LHR/stack')
 
-from analysis.sql_utils.db_handler import TableSpecs
-
+from analysis.sql_utils.db_handler import get_table_column_specs
+from stack.ingest.mqtt_handler import mosquitto_connect
 
 class DataTester:
     """
@@ -68,20 +72,23 @@ class DataTester:
 
 
 def main():
-    client = mqtt_client.Client('paho-client')
-    client.connect('10.0.0.21')
+    client = mosquitto_connect()
+
+    # data = {'date': datetime.date.today().isoformat(), 'power_limit': 80000, 'conditions': 'icky'}
     test = DataTester()
     count = 1
-    table = 'drive_day'
-    while True:
-        time.sleep(1)
-        # obj = {'val': math.sin(time.time() * .5)}
-        data = {KPI: test.get_random_data(vals['type'], 1, True, low=vals['range'][0], high=vals['range'][1]) if 'range' in vals else test.get_random_data(vals['type'], 1, True) for KPI, vals in TableSpecs.table_column_specs[table].items()}
-        data.update({key: int(val) for key, val in data.items() if type(val) is np.int64})
+    table = 'electronics'
+    # while True:
+    for i in range(15):
+        time.sleep(2)
+        # data = {KPI: test.get_random_data(vals['type'], 1, True, low=vals['range'][0], high=vals['range'][1]) if 'range' in vals else test.get_random_data(vals['type'], 1, True) for KPI, vals in get_table_column_specs(verbose=True)[table]}
+        # data.update({key: int(val) for key, val in data.items() if type(val) is np.int64})
+        # data.update({key})
+        data = {'time': int(time.time() * 1000), 'imd_on': bool(i % 2), 'hv_contactor_on': bool(i % 2), 'pre_c_contactor_on': bool(i % 2), 'ls_contactor_on': bool(i % 2), 'lv_battery_status': i}
         print(data)
-        client.publish('dynamics', json.dumps(data, indent=4))
+        client.publish(table, json.dumps(data, indent=2))
         print(f'Pushing values ({data}) now...')
-        count += 1
+        # count += 1
 
 
 if __name__ == '__main__':
