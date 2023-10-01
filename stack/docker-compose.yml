@@ -36,6 +36,9 @@ services:
       POSTGRES_PASSWORD: 2fast2quick
     ports:
       - "5432:5432"
+    tmpfs:
+      - /tmp
+      - /run/postgresql
 
   grafana:
     image: grafana/grafana-oss
