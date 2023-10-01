@@ -9,7 +9,7 @@ import os
 
 def get_table_column_specs(force=False, verbose=False):
     #TODO: 1) Find underlying data types of ARRAY; 2) Add point type compatibility
-    desc_path = './DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('analysis/', 1)[0] + 'analysis/sql_utils/DB_description.pkl'
+    desc_path = './DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('analysis/', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
     last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
     if not os.getenv('IN_DOCKER'):
         now = time.time()
@@ -54,19 +54,20 @@ class DBHandler:
                                host=config['host'], port=config['port'])
 
     @staticmethod
-    def get_insert_values(table, data, skip_first=True):
+    def get_insert_values(table, data):
         # Gather expected table columns
-        table_cols = get_table_column_specs()[table][skip_first:]
+        table_cols = get_table_column_specs()[table]
 
         # Individual table modifications
         if table == 'drive_day':
             data['date'] = datetime.date.today().isoformat()
+            table_cols = list(filter(lambda col: col[0] != 'day_id', table_cols))
         elif table == 'event':
             data['creation_time'] = int(time.time() * 1000)
-            table_cols = list(filter(lambda col: col[0] != 'event_index', table_cols))
+            table_cols = list(filter(lambda col: col[0] not in ['event_index', 'event_id'], table_cols))
 
         if table in ['electronics', 'dynamics', 'power']:
-            data['event_id'] = os.getenv('EVENT_ID')
+            data['event_id'] = int(os.getenv('EVENT_ID'))
 
         # Find columns missing from Flask app injection
         missing_cols = [col for col, _ in table_cols if col not in data]
@@ -101,9 +102,9 @@ class DBHandler:
         now = int(time.time() * 1000)
         with DBHandler().connect(user=user) as cnx:
             with cnx.cursor() as cur:
-                cur.execute(f'''UPDATE event SET {'start' if start else 'stop'}_time = {now}
+                cur.execute(f'''UPDATE event SET {'start' if start else 'end'}_time = {now}
                                     WHERE event_id = {event_id}
-                                    RETURNING {'start' if start else 'stop'}_time''')
+                                    RETURNING {'start' if start else 'end'}_time''')
                 return cur.fetchone()[0] == now
 
 
