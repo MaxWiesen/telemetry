@@ -84,9 +84,12 @@ class DBHandler:
         return ', '.join(data.keys()), list(data.values())
 
     @classmethod
-    def insert(cls, table, user='analysis', data=None):
+    def insert(cls, table, user='analysis', data=None, returning=None):
         if data is None:
             raise ValueError('No data in payload.')
+
+        if returning is None:
+            returning = get_table_column_specs()[table][0][0]
 
         cols, vals = cls.get_insert_values(table, dict(data))
 
@@ -94,7 +97,7 @@ class DBHandler:
             with cnx.cursor() as cur:
                 cur.execute(f'''INSERT INTO {table} ({cols})
                                     VALUES (%s{', %s' * (len(vals) - 1)}) 
-                                    RETURNING {get_table_column_specs()[table][0][0]}''', vals)
+                                    RETURNING {returning}''', vals)
                 return cur.fetchone()[0]
 
     @classmethod
