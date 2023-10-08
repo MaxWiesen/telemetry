@@ -17,7 +17,7 @@ def index():
 
 @app.route('/new_drive_day/', methods=['GET'])
 def new_drive_day():
-    day_id = DBHandler.insert(table='drive_day', user='electric', data=request.args)
+    day_id = DBHandler.insert(table='drive_day', user='electric', data=request.args, returning='day_id')
     return redirect(url_for('.new_event', day_id=day_id, method='new'))
 
 
@@ -37,7 +37,7 @@ def new_event():
 
 @app.route('/create_event/', methods=['POST'])
 def create_event():
-    event_id = DBHandler.insert(table='event', user='electric', data=request.form)
+    event_id = DBHandler.insert(table='event', user='electric', data=request.form, returning='event_id')
     os.environ['EVENT_ID'] = str(event_id)
     return render_template('event_tracker.html', event_id=event_id)
 
@@ -51,4 +51,4 @@ def set_event_time():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')
