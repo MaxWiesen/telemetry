@@ -1,4 +1,5 @@
 import logging
+import json
 import os
 import sys
 sys.path.append('~/Documents/LHR/stack')
@@ -6,6 +7,7 @@ sys.path.append('.')
 
 from flask import Flask, render_template, url_for, request, redirect
 from analysis.sql_utils.db_handler import DBHandler
+from stack.ingest.mqtt_handler import mosquitto_connect
 
 app = Flask(__name__)
 
@@ -38,13 +40,17 @@ def new_event():
 @app.route('/create_event/', methods=['POST'])
 def create_event():
     event_id = DBHandler.insert(table='event', user='electric', data=request.form, returning='event_id')
-    os.environ['EVENT_ID'] = str(event_id)
+    client = mosquitto_connect()
+    client.publish('flask', json.dumps({'event_id': event_id}, indent=2))
     return render_template('event_tracker.html', event_id=event_id)
 
 
 @app.route('/set_event_time/', methods=['POST'])
 def set_event_time():
     if DBHandler.set_event_time(event_id := request.form['event_id'], 'electric', 'start' in request.form):
+        if 'stop' in request.form:
+            client = mosquitto_connect()
+            client.publish('flask', json.dumps({'stop_event': True}, indent=2))
         return render_template('event_tracker.html', event_id=event_id)
     logging.warning('\t\tset_event_time FAILURE: Value written to database not equal to time created.')
     return 'Error setting time. Please contact a dev or try again:\n' + render_template('index.html')
