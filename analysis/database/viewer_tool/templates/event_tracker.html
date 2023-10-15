@@ -7,12 +7,39 @@
 {% block body %}
     <div>
         <h1>Create New Drive Day</h1>
+        <h2 class="time" id="timer">00:00.000</h2>
+        {% if time_started==True %}
+        <script>
+            var watch = new Stopwatch(timer);
+            watch.start();
+        </script>
+        {% endif %}
         <form action="/set_event_time/" method="POST">
             {# Hidden Event ID passthrough #}
             <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
-
             <button type="submit" id="start" name="start" value="start">Start Time</button>
-            <button type="submit" id="end" name="end" value="end">End Time</button>
+        </form>
+
+        <form action="/set_event_time/" method="POST">
+            {# Hidden Event ID passthrough #}
+            <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
+            <button type="submit" id="stop" name="stop" value="end">End Time</button>
+        </form>
+
+        <!-- <form action="/set_event_time/" method="POST">
+            {# Hidden Event ID passthrough #}
+            <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
+            <button type="submit" id="stop" name="stop" value="end">End Time</button>
+        </form> -->
+    </div>
+    <div>
+        <form action="/new_event/" method="GET">
+            {# Hidden Event ID passthrough #}
+            <input type="hidden" id="day_id" name="day_id" value="{{ day_id }}">
+            {# Method Indicator #}
+            <input type="hidden" id="method" name="method" value="existing">
+            <input type="submit" value="Create Event">
         </form>
     </div>
 {% endblock %}
+

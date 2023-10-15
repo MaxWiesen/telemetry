@@ -10,7 +10,11 @@ import os
 def get_table_column_specs(force=False, verbose=False):
     #TODO: 1) Find underlying data types of ARRAY; 2) Add point type compatibility
     desc_path = './DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('analysis/', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
-    last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
+    if os.path.isfile(desc_path):
+        last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
+    else:
+        force = True
+
     if not os.getenv('IN_DOCKER'):
         now = time.time()
         if force or now - last_update > 86_400 * 1:     # Days since last update
@@ -33,6 +37,9 @@ def get_table_column_specs(force=False, verbose=False):
 
 
 class DBHandler:
+    """
+    Class for interfacing with the database
+    """
     DB_CONFIG = {
         'PROD': {
             'dbname': 'telemetry',
@@ -47,14 +54,51 @@ class DBHandler:
     }
 
     def connect(self, target='PROD', user='analysis'):
+        """
+        Creates psycopg.connection instance, pulling info from DB_CONFIG according to input target and user
+
+        :param target:      str indicating target database server (according to DB_CONFIG)
+        :param user:        str indicating what user to use to sign in to server
+
+        :return conn:       psycopg.connection pointing at target, user and is used to generate cursors
+        """
         if target not in self.DB_CONFIG:
             raise ValueError(f'Target server {target} was not contained in DB_CONFIG.')
         config = self.DB_CONFIG[target]
         return psycopg.connect(dbname=config['dbname'], user=user, password=config['user'][user],
                                host=config['host'], port=config['port'])
 
+    @classmethod
+    def simple_select(cls, query: str, target='PROD', user='electric', handler=None, return_type=None):
+        if handler is None:
+            handler = cls()
+
+        if not isinstance(query, str):
+            raise ValueError('Simple select function is not capable of taking non-string query input.')
+
+        if 'SELECT' not in query.upper():
+            raise ValueError('Simple select is built specifically for surveying data. Non-"SELECT" queries are prohibited.')
+
+        if return_type is pd.DataFrame:
+            with handler.connect(target, user) as cnx:
+                return pd.io.sql.read_sql(query, cnx)
+
+        with handler.connect(target, user) as cnx:
+            with cnx.cursor() as cur:
+                cur.execute(query)
+                return cur.fetchall()
+
     @staticmethod
     def get_insert_values(table, data):
+        """
+        Collects data to be inserted into database. Accepts a target table and data payload, makes table-specific
+        pre-processing changes, packages column names and values to be used in final insertion.
+
+        :param table:       str indicating which table the insertion is targeting
+        :param data:        dict dictionary containing column names and corresponding row values
+
+        :return data:       dict containing preprocessed column name and values
+        """
         # Gather expected table columns
         table_cols = get_table_column_specs()[table]
 
@@ -81,34 +125,45 @@ class DBHandler:
         if nans:
             logging.warning(f'\t\tFollowing columns had NaN data: {str(nans).replace(": ", " = ")[1:-1]}')
 
-        return ', '.join(data.keys()), list(data.values())
+        return data
 
     @classmethod
     def insert(cls, table, user='analysis', data=None, returning=None):
+        """
+        Targets a table and sends an individual row of data to database, with ability to get columns from the last row.
+
+        :param table:       str indicating which table the insertion is targeting
+        :param user:        str indicating what user to use to sign in to server
+        :param data:        dict | request.* holds data to send to database
+        :param returning:   str | list column names to return values for after request is executed
+
+        :return data:       dict containing preprocessed column name and values
+        """
         if data is None:
             raise ValueError('No data in payload.')
 
         if returning is None:
             returning = get_table_column_specs()[table][0][0]
 
-        cols, vals = cls.get_insert_values(table, dict(data))
+        data = cls.get_insert_values(table, dict(data))
 
         with DBHandler().connect(user=user) as cnx:
             with cnx.cursor() as cur:
-                cur.execute(f'''INSERT INTO {table} ({cols})
-                                    VALUES (%s{', %s' * (len(vals) - 1)}) 
-                                    RETURNING {returning}''', vals)
-                return cur.fetchone()[0]
+                cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
+                                    VALUES (%s{', %s' * (len(vals:=list(data.values())) - 1)}) 
+                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''',
+                            vals)
+                return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
     @classmethod
-    def set_event_time(cls, event_id, user='analysis', start=True):
+    def set_event_time(cls, event_id, user='analysis', start=True, returning=None):
         now = int(time.time() * 1000)
         with DBHandler().connect(user=user) as cnx:
             with cnx.cursor() as cur:
                 cur.execute(f'''UPDATE event SET {'start' if start else 'end'}_time = {now}
                                     WHERE event_id = {event_id}
-                                    RETURNING {'start' if start else 'end'}_time''')
-                return cur.fetchone()[0] == now
+                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
+                return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
 
 if __name__ == '__main__':
