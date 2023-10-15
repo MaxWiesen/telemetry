@@ -1,8 +1,8 @@
 import os
 import logging
 import json
-
 from paho.mqtt import client as mqtt_client
+
 if os.getenv('IN_DOCKER'):
     from db_handler import DBHandler, get_table_column_specs    # Cheesed import statement using bind mount
 else:
@@ -38,7 +38,7 @@ def main():
 
     client.subscribe('#')
     client.on_message = on_message
-    client.loop_start()
+    client.loop_forever()
 
 
 if __name__ == '__main__':
