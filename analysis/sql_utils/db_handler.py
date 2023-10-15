@@ -68,6 +68,26 @@ class DBHandler:
         return psycopg.connect(dbname=config['dbname'], user=user, password=config['user'][user],
                                host=config['host'], port=config['port'])
 
+    @classmethod
+    def simple_select(cls, query: str, target='PROD', user='electric', handler=None, return_type=None):
+        if handler is None:
+            handler = cls()
+
+        if not isinstance(query, str):
+            raise ValueError('Simple select function is not capable of taking non-string query input.')
+
+        if 'SELECT' not in query.upper():
+            raise ValueError('Simple select is built specifically for surveying data. Non-"SELECT" queries are prohibited.')
+
+        if return_type is pd.DataFrame:
+            with handler.connect(target, user) as cnx:
+                return pd.io.sql.read_sql(query, cnx)
+
+        with handler.connect(target, user) as cnx:
+            with cnx.cursor() as cur:
+                cur.execute(query)
+                return cur.fetchall()
+
     @staticmethod
     def get_insert_values(table, data):
         """
@@ -136,14 +156,14 @@ class DBHandler:
                 return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
     @classmethod
-    def set_event_time(cls, event_id, user='analysis', start=True):
+    def set_event_time(cls, event_id, user='analysis', start=True, returning=None):
         now = int(time.time() * 1000)
         with DBHandler().connect(user=user) as cnx:
             with cnx.cursor() as cur:
                 cur.execute(f'''UPDATE event SET {'start' if start else 'end'}_time = {now}
                                     WHERE event_id = {event_id}
-                                    RETURNING {'start' if start else 'end'}_time''')
-                return cur.fetchone()[0] == now
+                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
+                return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
 
 if __name__ == '__main__':
