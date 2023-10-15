@@ -10,7 +10,11 @@ import os
 def get_table_column_specs(force=False, verbose=False):
     #TODO: 1) Find underlying data types of ARRAY; 2) Add point type compatibility
     desc_path = './DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('analysis/', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
-    last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
+    if not os.path.isfile(desc_path):
+        force = True
+    else:
+        last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
+
     if not os.getenv('IN_DOCKER'):
         now = time.time()
         if force or now - last_update > 86_400 * 1:     # Days since last update
