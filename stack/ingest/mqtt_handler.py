@@ -21,24 +21,24 @@ def main():
     client = mosquitto_connect()
 
     def on_message(clients, userdata, msg):
-        logging.info('\n\n\n\n\nOn_message')
         table = msg.topic.rsplit('/', 1)[-1]
         payload = json.loads(msg.payload.decode())
         if table == 'flask':
-            if (event_id := payload.get('event_id')):
+            if event_id := payload.get('event_id'):
                 logging.info(f'Now logging data for event: {event_id}...')
-                os.environ['EVENT_ID'] = event_id
-            # elif payload.get('stop_event'):
-            #     client.loop_stop()
+                os.environ['EVENT_ID'] = str(event_id)
+            elif payload.get('stop_event'):
+                logging.info(f'Now ending logging for event {os.environ["EVENT_ID"]}')
+                del os.environ['EVENT_ID']
         elif table in get_table_column_specs():
             logging.info(f'Data received for {table}. Inserting to Database now...')
             DBHandler.insert(table, user='electric', data=payload)
         else:
-            logging.error(f'Table requested in MQTT topic does not exist in Database.')
+            logging.error(f'Table {table} requested in MQTT topic does not exist in Database.')
 
     client.subscribe('#')
     client.on_message = on_message
-    client.loop_forever()
+    client.loop_start()
 
 
 if __name__ == '__main__':
