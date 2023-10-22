@@ -1,16 +1,16 @@
 import numpy as np
-from paho.mqtt import client as mqtt_client
 from numpy.random import default_rng
 import time
-import datetime
-import json
+import pickle
 import requests
 import logging
 import sys
-sys.path.append('~/Documents/LHR/stack')
+from pathlib import Path
+sys.path.append(str(Path(__file__).parents[2]))
 
-from analysis.sql_utils.db_handler import get_table_column_specs
 from stack.ingest.mqtt_handler import mosquitto_connect
+from analysis.sql_utils.db_handler import DBHandler, get_table_column_specs
+
 
 class DataTester:
     """
@@ -52,9 +52,7 @@ class DataTester:
             res = f'point({self.get_random_data(float, 1, as_scalar=True, low=-180, high=180)}, {self.get_random_data(float, 1, as_scalar=True, low=-90, high=90)})'
         # If bool or int, use default_rng.integers method with some argument manipulation
         elif dtype is bool or np.issubdtype(dtype, np.integer):
-            res = self.rng.integers(low=2 if dtype is bool else low if isinstance((low := kwargs.get('low', kwargs.get('high'))), int) else kwargs.get('min', kwargs.get('max')),
-                                    high=kwargs.get('high', kwargs.get('max')) if 'low' in kwargs and np.issubdtype(dtype, np.integer) else None,
-                                    size=size, dtype=dtype)
+            res = self.rng.integers(0, 2 if dtype is bool else 32767, size=size, dtype=dtype)
         # If float, use default_rng.random method with [0, 1) --> [low/min, high/max) transformation algorithm
         elif np.issubdtype(dtype, np.floating):
             # Algorithm used is (big - small) * random(0-1) + small
@@ -72,26 +70,24 @@ class DataTester:
 
 
 def main():
-    client = mosquitto_connect()
-
-    # data = {'date': datetime.date.today().isoformat(), 'power_limit': 80000, 'conditions': 'icky'}
+    client = mosquitto_connect('paho_tester')
     test = DataTester()
-    count = 1
     table = 'electronics'
-    # while True:
-    for i in range(15):
-        time.sleep(2)
-        # data = {KPI: test.get_random_data(vals['type'], 1, True, low=vals['range'][0], high=vals['range'][1]) if 'range' in vals else test.get_random_data(vals['type'], 1, True) for KPI, vals in get_table_column_specs(verbose=True)[table]}
-        # data.update({key: int(val) for key, val in data.items() if type(val) is np.int64})
-        # data.update({key})
-        data = {'time': int(time.time() * 1000), 'imd_on': bool(i % 2), 'hv_contactor_on': bool(i % 2), 'pre_c_contactor_on': bool(i % 2), 'ls_contactor_on': bool(i % 2), 'lv_battery_status': i}
-        print(data)
-        client.publish(table, json.dumps(data, indent=2))
-        print(f'Pushing values ({data}) now...')
-        # count += 1
+    table_desc = get_table_column_specs()[table]
+
+    payload = {}
+    for i in range(100):
+        for col, typ in filter(lambda x: x[0] != 'event_id', table_desc):
+            if typ is float:
+                payload[col] = test.get_random_data(typ, min=0, max=100, as_scalar=True)
+            else:
+                payload[col] = test.get_random_data(typ, as_scalar=True)
+
+        print(f'Publishing payload #{i:>3}: {payload}')
+        client.publish(f'data/{table}', pickle.dumps(payload))
+        time.sleep(1)
 
 
 if __name__ == '__main__':
-    # print(DataTester().get_random_data(float, size=1, min=10, max=100))
-    # print(DataTester().get_random_data(str, size=10, length=10))
+    logging.basicConfig(level=logging.INFO)
     main()
