@@ -2,36 +2,52 @@
 
 {% block head %}
     <title>Telemetry Injection Tool</title>
+    <script src="{{ url_for('static', filename='js/stopWatch.js') }}"></script>
 {% endblock %}
 
 {% block body %}
     <div>
         <h1>Create New Drive Day</h1>
-        <h2 class="time" id="timer">00:00.000</h2>
+        <h2 class="time" id="timer">{{now}}</h2>
         {% if time_started==True %}
         <script>
+            var timer = document.getElementById("timer");
             var watch = new Stopwatch(timer);
             watch.start();
-        </script>
+        </script>   
         {% endif %}
         <form action="/set_event_time/" method="POST">
             {# Hidden Event ID passthrough #}
             <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
-            <button type="submit" id="start" name="start" value="start">Start Time</button>
+            <button type="submit" id="start" name="start" class="start-stop-btn btn-success btn-lg" value="start">Start Time</button>
+            <input type="hidden" id="time" name="time" value="0">
+            <script>
+                document.getElementById("time").setAttribute("value",document.getElementById("timer").textContent);
+            </script>
         </form>
 
         <form action="/set_event_time/" method="POST">
             {# Hidden Event ID passthrough #}
             <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
+            <input type="hidden" id="time" name="time" value="0">
+            <script>
+                document.getElementById("time").setAttribute("value",document.getElementById("timer").textContent);
+            </script>
             <button type="submit" id="stop" name="stop" value="end">End Time</button>
         </form>
-
-        <!-- <form action="/set_event_time/" method="POST">
-            {# Hidden Event ID passthrough #}
-            <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
-            <button type="submit" id="stop" name="stop" value="end">End Time</button>
-        </form> -->
     </div>
+
+    <div>
+        <table style="width:100%" id="data-table">
+            <tr>
+                <th>Turn number</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>notes</th>
+            </tr>
+        </table>
+    </div>
+
     <div>
         <form action="/new_event/" method="GET">
             {# Hidden Event ID passthrough #}

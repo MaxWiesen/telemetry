@@ -1,6 +1,7 @@
-import logging
 import json
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 sys.path.append(str(Path(__file__).parents[3]))
 
@@ -32,18 +33,34 @@ def create_event():
     day_id, event_id = DBHandler.insert(table='event', user='electric', data=request.form, returning=['day_id', 'event_id'])
     client = mosquitto_connect()
     client.publish('flask', json.dumps({'event_id': event_id}, indent=4))
-    return render_template('event_tracker.html', event_id=event_id)
+    return render_template('event_tracker.html', event_id=event_id, now = "00:00.000", time_started = False)
 
 
 @app.route('/set_event_time/', methods=['POST'])
 def set_event_time():
     event_id = int(request.form['event_id'])
     day_id = DBHandler.set_event_time(event_id, 'electric', 'start' in request.form, 'day_id')
+    if 'start' in request.form:
+        t = time.localtime()
+        current_time = time.strftime("%H:%M:%S", t)
     if 'start' not in request.form:
+        current_time = request.form['time']
         client = mosquitto_connect()
         client.publish('flask', json.dumps({'end_event': True}, indent=4))
-    return render_template('event_tracker.html', event_id=event_id)
+    return render_template('event_tracker.html', time_started = ('start'  in request.form), now = current_time, event_id=event_id)
 
+# @app.route('/start_turn/', methods=['POST'])
+# def set_event_time():
+#     event_id = int(request.form['event_id'])
+#     day_id = DBHandler.set_event_time(event_id, 'electric', 'start' in request.form, 'day_id')
+#     started = False
+#     if 'start'  in request.form:
+#         started = True
+#     if 'start' not in request.form:
+#         started = False
+#         client = mosquitto_connect()
+#         client.publish('flask', json.dumps({'end_event': True}, indent=4))
+#     return render_template('event_tracker.html', time_started = started, event_id=event_id)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0:5001', debug=True)
+    app.run(host='0.0.0.0', port=5001)
