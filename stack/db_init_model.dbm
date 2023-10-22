@@ -3,7 +3,7 @@
 CAUTION: Do not modify this file unless you know what you are doing.
  Unexpected results may occur if the code is changed deliberately.
 -->
-<dbmodel pgmodeler-ver="1.0.1" use-changelog="false" last-position="0,0" last-zoom="1" max-obj-count="10"
+<dbmodel pgmodeler-ver="1.0.1" use-changelog="false" last-position="0,0" last-zoom="1" max-obj-count="12"
 	 default-schema="public" default-owner="postgres"
 	 layers="Default layer"
 	 active-layers="0"
@@ -408,6 +408,24 @@ WHERE car_id = car AND day_id = day;
 RETURN @ind;]]> </definition>
 </function>
 
+<table name="classifier" layers="0" collapse-mode="2" max-obj-count="4" z-value="0">
+	<schema name="public"/>
+	<role name="electric"/>
+	<position x="1440" y="340"/>
+	<column name="event_id" not-null="true">
+		<type name="smallint" length="0"/>
+	</column>
+	<column name="type" not-null="true">
+		<type name="text" length="0"/>
+	</column>
+	<column name="start_time">
+		<type name="bigint" length="0"/>
+	</column>
+	<column name="end_time">
+		<type name="bigint" length="0"/>
+	</column>
+</table>
+
 <constraint name="FK_day_id" type="fk-constr" comparison-type="MATCH SIMPLE"
 	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.drive_day" table="public.event">
 	<columns names="day_id" ref-type="src-columns"/>
@@ -456,6 +474,12 @@ RETURN @ind;]]> </definition>
 	<columns names="event_id" ref-type="dst-columns"/>
 </constraint>
 
+<constraint name="FK_event_id" type="fk-constr" comparison-type="MATCH SIMPLE"
+	 upd-action="NO ACTION" del-action="NO ACTION" ref-table="public.event" table="public.classifier">
+	<columns names="event_id" ref-type="src-columns"/>
+	<columns names="event_id" ref-type="dst-columns"/>
+</constraint>
+
 <relationship name="rel_event_lut_car" type="relfk" layers="0"
 	 src-table="public.event"
 	 dst-table="public.lut_car" reference-fk="FK_car_id"
@@ -493,6 +517,11 @@ RETURN @ind;]]> </definition>
 
 <relationship name="rel_electronics_event" type="relfk" layers="0"
 	 src-table="public.electronics"
+	 dst-table="public.event" reference-fk="FK_event_id"
+	 src-required="false" dst-required="true"/>
+
+<relationship name="rel_classifier_event" type="relfk" layers="0"
+	 src-table="public.classifier"
 	 dst-table="public.event" reference-fk="FK_event_id"
 	 src-required="false" dst-required="true"/>
 
