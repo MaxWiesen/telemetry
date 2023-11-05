@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parents[2]))
 
 from stack.ingest.mqtt_handler import mosquitto_connect
-from analysis.sql_utils.db_handler import DBHandler, get_table_column_specs
+from analysis.sql_utils.db_handler import get_table_column_specs
 
 
 class DataTester:
@@ -25,7 +25,6 @@ class DataTester:
         self.rng = default_rng(seed)
 
     def get_random_data(self, dtype: type, size=1, as_scalar=False, **kwargs):
-        # TODO: Adapt for handling arrays (like 'bms_cells_v')
         """
         Creates and returns array of (pseudo-)randomly generated number based on given data type.
 
@@ -49,7 +48,8 @@ class DataTester:
 
         # If point, return a tuple of longitude and latitude
         if dtype == 'point':
-            res = f'point({self.get_random_data(float, 1, as_scalar=True, low=-180, high=180)}, {self.get_random_data(float, 1, as_scalar=True, low=-90, high=90)})'
+            res = [self.get_random_data(float, 1, as_scalar=True, low=-180, high=180),
+                   self.get_random_data(float, 1, as_scalar=True, low=-90, high=90)]
         # If bool or int, use default_rng.integers method with some argument manipulation
         elif dtype is bool or np.issubdtype(dtype, np.integer):
             res = self.rng.integers(0, 2 if dtype is bool else 32767, size=size, dtype=dtype)
@@ -66,22 +66,22 @@ class DataTester:
         else:
             raise NotImplementedError(f'Data type {dtype} not implemented yet.')
 
-        return res[0] if as_scalar else res
+        return res[0] if size == 1 else list(res)
 
 
 def main():
     client = mosquitto_connect('paho_tester')
     test = DataTester()
-    table = 'electronics'
+    table = 'dynamics'
     table_desc = get_table_column_specs()[table]
 
     payload = {}
     for i in range(100):
-        for col, typ in filter(lambda x: x[0] != 'event_id', table_desc):
-            if typ is float:
-                payload[col] = test.get_random_data(typ, min=0, max=100, as_scalar=True)
+        for col, dtype, is_list in filter(lambda x: x[0] != 'event_id', table_desc):
+            if dtype is float:
+                payload[col] = test.get_random_data(dtype, min=0, max=100, size=5 if is_list else 1)
             else:
-                payload[col] = test.get_random_data(typ, as_scalar=True)
+                payload[col] = test.get_random_data(dtype, size=5 if is_list else 1)
 
         print(f'Publishing payload #{i:>3}: {payload}')
         client.publish(f'data/{table}', pickle.dumps(payload))
