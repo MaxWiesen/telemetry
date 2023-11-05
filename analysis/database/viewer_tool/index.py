@@ -14,12 +14,6 @@ from stack.ingest.mqtt_handler import mosquitto_connect
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/data', methods=['GET','POST'])
-def data():
-    name = request.get_json()
-    print(name)
-    return render_template('event_tracker.html')
-
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
@@ -43,25 +37,16 @@ def create_event():
     client.publish('flask', json.dumps({'event_id': event_id}, indent=4))
     return render_template('event_tracker.html', event_id=event_id, now = "00:00.000", time_started = False)
 
+
 @app.route('/set_event_time/', methods=['GET', 'POST'])
 def set_event_time():
-    # response = requests.get('http://127.0.0.1:5001/data')
     return render_template('event_tracker.html')
 
-
-
-# @app.route('/set_event_time/', methods=['POST'])
-# def set_event_time():
-#     event_id = int(request.form['event_id'])
-#     day_id = DBHandler.set_event_time(event_id, 'electric', 'start' in request.form, 'day_id')
-#     if 'start' in request.form:
-#         t = time.localtime()
-#         current_time = time.strftime("%H:%M:%S", t)
-#     if 'start' not in request.form:
-#         current_time = request.form['time']
-#         client = mosquitto_connect()
-#         client.publish('flask', json.dumps({'end_event': True}, indent=4))
-#     return render_template('event_tracker.html', time_started = ('start'  in request.form), now = current_time, event_id=event_id)
+@app.route('/data', methods=['GET','POST'])
+def data():
+    data = request.data
+    print(data)
+    return render_template('event_tracker.html')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001)

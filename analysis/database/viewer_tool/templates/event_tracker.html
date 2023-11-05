@@ -48,22 +48,25 @@
             var stopButton = document.getElementById('stopButton');
             var turnButton = document.getElementById('turnButton');
 
-            var downloadButton = document.getElementById('save');
+            var saveButton = document.getElementById('save');
+            saveButton.setAttribute("disabled", true)
 
             var watch = new Stopwatch(timer, tab);
 
             startButton.addEventListener('click', function() {
+                saveButton.setAttribute("disabled", true)
                 watch.start();
             });
 
             stopButton.addEventListener('click', function() {
+                saveButton.removeAttribute("disabled")
                 watch.stop();
             });
 
             turnButton.addEventListener('click', function() {
                 watch.turn();
             });
-            downloadButton.addEventListener('click', function() {
+            saveButton.addEventListener('click', function() {
                 watch.tableToJSON(document.getElementById("turn-table"));
             });
         </script>

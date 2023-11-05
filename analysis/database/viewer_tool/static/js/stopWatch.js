@@ -65,22 +65,8 @@ function Stopwatch(elem) {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', 'http://127.0.0.1:5001/data');
     xhr.setRequestHeader('Content-Type', 'application/json', 'charset=UTF-8');
-    xhr.send("name=" + JSON.stringify(data));
+    xhr.send(JSON.stringify(data));
 }
-
-
-function downloadCSVFile(csv_data) {
-  CSVFile = new Blob([csv_data], { type: "text/csv" });
-  var temp_link = document.createElement('a');
-  temp_link.download = "GfG.csv";
-  var url = window.URL.createObjectURL(CSVFile);
-  temp_link.href = url;
-  temp_link.style.display = "none";
-  document.body.appendChild(temp_link);
-  temp_link.click();
-  document.body.removeChild(temp_link);
-}
-
   this.isOn = false;
 
   this.start = function() {
