@@ -198,7 +198,7 @@ CAUTION: Do not modify this file unless you know what you are doing.
 	<column name="car_weight">
 		<type name="smallint" length="0"/>
 	</column>
-	<column name="tow_angle">
+	<column name="toe_angle">
 		<type name="real" length="0"/>
 	</column>
 	<column name="camber">
