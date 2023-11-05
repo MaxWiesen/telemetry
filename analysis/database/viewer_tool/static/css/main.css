@@ -20,24 +20,6 @@ width: 325px;
 padding: 10px;
 }
 
-.start-stop {
-margin: 0 auto;
-width: 300px;
-padding: 10px;
-display: flex;
-align-items: center;
-justify-content: center;
-}
-
-.start-stop-btn {
-width: 125px;
-margin: 0 auto;
-}
-
-.reset-btn {
-padding: 10px;
-}
-
 .title {
 font-size: 50px;
 color: white

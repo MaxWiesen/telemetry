@@ -3,58 +3,70 @@
 {% block head %}
     <title>Telemetry Injection Tool</title>
     <script src="{{ url_for('static', filename='js/stopWatch.js') }}"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}"/>
 {% endblock %}
 
 {% block body %}
-    <div>
-        <h1>Create New Drive Day</h1>
-        <h2 class="time" id="timer">{{now}}</h2>
-        {% if time_started==True %}
+<div class="container" align="center">
+    <div class="row">
+        <div class="col-md-6">
+            <h2>Timer</h2>
+
+            <h2 class="time" id="timer">00:00.000</h2>
+
+            <div class="buttons">
+                <div class="start-stop">
+                    <button type="button" id="startButton" class="btn-success btn-lg">START</button>
+                    <button type="button" id="stopButton" class="btn-danger btn-lg">STOP</button>
+                </div>
+                <div>
+                    <button type="button" id="turnButton" class="reset-btn btn-dark btn-lg">Start Turn</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <table style="width:100%" id="turn-table">
+                <tr>
+                    <th>Turn Number</th>
+                    <th>Time Start</th>
+                    <th>Time End</th>
+                    <th>Notes</th>
+                </tr>
+            </table>
+            <div>
+                <button type="submit" id="save" class="btn btn-primary btn-lg btn-block">Save</button>
+            </div>
+        </div>
+
+
         <script>
-            var timer = document.getElementById("timer");
-            var watch = new Stopwatch(timer);
-            watch.start();
-        </script>   
-        {% endif %}
-        <form action="/set_event_time/" method="POST">
-            {# Hidden Event ID passthrough #}
-            <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
-            <button type="submit" id="start" name="start" class="start-stop-btn btn-success btn-lg" value="start">Start Time</button>
-            <input type="hidden" id="time" name="time" value="0">
-            <script>
-                document.getElementById("time").setAttribute("value",document.getElementById("timer").textContent);
-            </script>
-        </form>
+            var clock = document.getElementById('timer');
+            var tab = document.getElementById('data-table');
 
-        <form action="/set_event_time/" method="POST">
-            {# Hidden Event ID passthrough #}
-            <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
-            <input type="hidden" id="time" name="time" value="0">
-            <script>
-                document.getElementById("time").setAttribute("value",document.getElementById("timer").textContent);
-            </script>
-            <button type="submit" id="stop" name="stop" value="end">End Time</button>
-        </form>
-    </div>
+            var startButton = document.getElementById('startButton');
+            var stopButton = document.getElementById('stopButton');
+            var turnButton = document.getElementById('turnButton');
 
-    <div>
-        <table style="width:100%" id="data-table">
-            <tr>
-                <th>Turn number</th>
-                <th>Start Time</th>
-                <th>End Time</th>
-                <th>notes</th>
-            </tr>
-        </table>
-    </div>
+            var downloadButton = document.getElementById('save');
 
-    <div>
-        <form action="/new_event/" method="GET">
-            {# Hidden Event ID passthrough #}
-            <input type="hidden" id="day_id" name="day_id" value="{{ day_id }}">
-            {# Method Indicator #}
-            <input type="hidden" id="method" name="method" value="existing">
-            <input type="submit" value="Create Event">
-        </form>
+            var watch = new Stopwatch(timer, tab);
+
+            startButton.addEventListener('click', function() {
+                watch.start();
+            });
+
+            stopButton.addEventListener('click', function() {
+                watch.stop();
+            });
+
+            turnButton.addEventListener('click', function() {
+                watch.turn();
+            });
+            downloadButton.addEventListener('click', function() {
+                watch.tableToJSON(document.getElementById("turn-table"));
+            });
+        </script>
     </div>
+</div>
 {% endblock %}
