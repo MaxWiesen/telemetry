@@ -39,9 +39,8 @@ CREATE ROLE analysis WITH
 -- object: telemetry | type: DATABASE --
 -- DROP DATABASE IF EXISTS telemetry;
 -- CREATE DATABASE telemetry
--- 	OWNER = electric;
+--	OWNER = electric;
 -- ddl-end --
-
 
 
 SET check_function_bodies = false;
@@ -65,6 +64,7 @@ BEGIN
 	RETURN ind + 1;
 END;
 $$;
+
 -- ddl-end --
 ALTER FUNCTION public.get_event_index(smallint,smallint) OWNER TO electric;
 -- ddl-end --
@@ -274,6 +274,19 @@ CREATE TABLE public.electronics (
 ALTER TABLE public.electronics OWNER TO electric;
 -- ddl-end --
 
+-- object: public.classifier | type: TABLE --
+-- DROP TABLE IF EXISTS public.classifier CASCADE;
+CREATE TABLE public.classifier (
+	event_id smallint NOT NULL,
+	type text NOT NULL,
+	start_time bigint,
+	end_time bigint
+
+);
+-- ddl-end --
+ALTER TABLE public.classifier OWNER TO electric;
+-- ddl-end --
+
 -- object: "FK_day_id" | type: CONSTRAINT --
 -- ALTER TABLE public.event DROP CONSTRAINT IF EXISTS "FK_day_id" CASCADE;
 ALTER TABLE public.event ADD CONSTRAINT "FK_day_id" FOREIGN KEY (day_id)
@@ -326,6 +339,13 @@ ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- object: "FK_event_id" | type: CONSTRAINT --
 -- ALTER TABLE public.electronics DROP CONSTRAINT IF EXISTS "FK_event_id" CASCADE;
 ALTER TABLE public.electronics ADD CONSTRAINT "FK_event_id" FOREIGN KEY (event_id)
+REFERENCES public.event (event_id) MATCH SIMPLE
+ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: "FK_event_id" | type: CONSTRAINT --
+-- ALTER TABLE public.classifier DROP CONSTRAINT IF EXISTS "FK_event_id" CASCADE;
+ALTER TABLE public.classifier ADD CONSTRAINT "FK_event_id" FOREIGN KEY (event_id)
 REFERENCES public.event (event_id) MATCH SIMPLE
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
