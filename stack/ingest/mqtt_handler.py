@@ -32,6 +32,8 @@ def main():
                 logging.info(f'Now ending logging for event {os.environ["EVENT_ID"]}')
                 del os.environ['EVENT_ID']
         elif table in get_table_column_specs():
+            if not os.getenv('EVENT_ID'):
+                logging.error(f'Attempt made to send data to {table} without an event_id cached.')
             payload = pickle.loads(msg.payload)
             logging.info(f'Data received for {table}. Inserting to Database now...')
             payload['event_id'] = os.getenv('EVENT_ID')
