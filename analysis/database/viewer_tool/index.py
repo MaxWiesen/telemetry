@@ -42,8 +42,14 @@ def create_event():
 def set_event_time():
     return render_template('event_tracker.html')
 
-@app.route('/data', methods=['GET','POST'])
-def data():
+@app.route('/turn_data', methods=['GET','POST'])
+def turn_data():
+    data = request.data
+    print(data)
+    return render_template('event_tracker.html')
+
+@app.route('/accel_data', methods=['GET','POST'])
+def accel_data():
     data = request.data
     print(data)
     return render_template('event_tracker.html')
