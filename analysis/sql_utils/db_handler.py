@@ -5,7 +5,7 @@ import time
 import logging
 import datetime
 import os
-
+from pathlib import Path
 
 def get_table_column_specs(force=False, verbose=False):
     """
@@ -19,27 +19,27 @@ def get_table_column_specs(force=False, verbose=False):
     """
     #TODO: 1) Find underlying data types of ARRAY; 2) Add point type compatibility
     desc_path = './DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('analysis/', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
-    if os.path.isfile(desc_path):
-        last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
-    else:
-        force = True
 
-    if not os.getenv('IN_DOCKER'):
-        now = time.time()
-        if force or now - last_update > 86_400 * 1:     # Days since last update
-            data = DBHandler.simple_select("""SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
-                                           FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'public'""",
-                                           target='PROD', user='electric', return_type=pd.DataFrame)
-            data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'text': str,
-                                    'boolean': bool, 'date': datetime.date, 'ARRAY': list}, inplace=True)
-            data.loc[data.column_name == 'date', 'data_type'] = str
-            table_column_specs = {table: list(zip((table_data := data[data.table_name == table]).column_name,
-                                                  table_data.data_type)) for table in data.table_name.unique()}
-            pickle.dump((now, table_column_specs), open(desc_path, 'wb'))
-            logging.info(f'\t\ttable_column_specs out of date and updated.')
-        if verbose:     # Pretty print table column specs
-            [logging.info(f'\t\t{table}\n' + ''.join([f'\n{col:^20} {str(dtype):^30}' for col, dtype in col_data]) +
-                          '\n') for table, col_data in table_column_specs.items()]
+    force = force or not Path(desc_path).is_file()
+    if not force:
+        last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
+
+    now = time.time()
+    if force or now - last_update > 86_400 * 1:     # Days since last update
+        data = DBHandler.simple_select("""SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
+                                       FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'public'""",
+                                       target='PROD', user='electric', return_type=pd.DataFrame)
+        data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'text': str,
+                                'boolean': bool, 'date': datetime.date, 'ARRAY': list}, inplace=True)
+        data.loc[data.column_name == 'date', 'data_type'] = str
+        table_column_specs = {table: list(zip((table_data := data[data.table_name == table]).column_name,
+                                              table_data.data_type)) for table in data.table_name.unique()}
+        pickle.dump((now, table_column_specs), open(desc_path, 'wb'))
+        logging.info(f'\t\ttable_column_specs out of date and updated.')
+
+    if verbose:     # Pretty print table column specs
+        [logging.info(f'\t\t{table}\n' + ''.join([f'\n{col:^20} {str(dtype):^30}' for col, dtype in col_data]) +
+                      '\n') for table, col_data in table_column_specs.items()]
     return table_column_specs
 
 
