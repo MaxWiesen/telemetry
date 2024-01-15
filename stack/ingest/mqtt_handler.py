@@ -22,6 +22,7 @@ def main():
     client = mosquitto_connect('mqtt_handler')
 
     def on_message(clients, userdata, msg):
+        logging.info(f'Received message at topic {msg.topic}: {msg.payload}')
         table = msg.topic.rsplit('/', 1)[-1]
         if table == 'flask':
             payload = json.loads(msg.payload.decode())
@@ -34,16 +35,20 @@ def main():
         elif table in get_table_column_specs():
             if not os.getenv('EVENT_ID'):
                 logging.error(f'Attempt made to send data to {table} without an event_id cached.')
-            payload = pickle.loads(msg.payload)
-            logging.info(f'Data received for {table}. Inserting to Database now...')
-            payload['event_id'] = os.getenv('EVENT_ID')
-            DBHandler.insert(table, target='PROD', user='electric', data=payload)
+            else:
+                logging.info(f'Data received for {table}. Inserting to Database now...')
+                try:
+                    payload = pickle.loads(msg.payload)
+                except pickle.UnpicklingError:
+                    payload = json.loads(msg.payload)
+                payload['event_id'] = os.getenv('EVENT_ID')
+                DBHandler.insert(table, target='PROD', user='electric', data=payload)
         else:
             logging.error(f'Table {table} requested in MQTT topic does not exist in Database.')
 
     def on_disconnect(clients, userdata, rc):
         if rc != 0:
-            print("Unexpected MQTT disconnection. Attempting to reconnect.")
+            print(f'Unexpected MQTT disconnection. Return code: {rc}')
 
     client.subscribe('#')
     client.on_message = on_message
