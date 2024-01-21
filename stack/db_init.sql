@@ -280,8 +280,8 @@ CREATE TABLE public.classifier (
 	event_id smallint NOT NULL,
 	type text NOT NULL,
 	start_time bigint,
-	end_time bigint
-
+	end_time bigint,
+    notes text
 );
 -- ddl-end --
 ALTER TABLE public.classifier OWNER TO electric;
