@@ -2,12 +2,12 @@ import logging
 import json
 import sys
 from pathlib import Path
+sys.path.append(str(Path(__file__).parents[3]))
 from flask import Flask, render_template, url_for, request, redirect
 
 from analysis.sql_utils.db_handler import DBHandler
 from stack.ingest.mqtt_handler import mosquitto_connect
 
-sys.path.append(str(Path(__file__).parents[3]))
 app = Flask(__name__)
 
 @app.route('/', methods=['GET'])
