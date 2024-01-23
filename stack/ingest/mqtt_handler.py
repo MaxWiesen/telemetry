@@ -10,15 +10,26 @@ else:
     from analysis.sql_utils.db_handler import DBHandler, get_table_column_specs
 
 
-def mosquitto_connect(name='python_client'):
+def mosquitto_connect(name='python_client', ip=None):
+    '''
+    Connect to the MQTT broker.
+
+    :param name:    str determining name of client to self-report to MQTT broker
+    :param ip:      str indicating IP of MQTT broker
+
+    :return:        mqtt_client.Client object
+    '''
     client = mqtt_client.Client(name)
     client.on_connect = lambda clients, userdata, flags, rc: logging.error(f'Failed to connect to Mosquitto Broker, return code {rc}\n') if rc \
         else logging.info(f'\t\t{name} connected to Mosquitto Broker')
-    client.connect('mosquitto' if os.getenv('IN_DOCKER') else 'localhost')
+    client.connect(ip if ip else 'mosquitto' if os.getenv('IN_DOCKER') else 'localhost')
     return client
 
 
 def main():
+    '''
+    This is the runner script for the subscribe-side MQTT script which uploads data to the database
+    '''
     client = mosquitto_connect('mqtt_handler')
 
     def on_message(clients, userdata, msg):
