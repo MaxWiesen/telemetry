@@ -14,8 +14,8 @@ services:
     image: telemetry_backend
     container_name: python_client
     environment:
-      PYTHONUNBUFFERED: 1
-      IN_DOCKER: 1
+      PYTHONUNBUFFERED: 1   # Allows output in Docker Compose console
+      IN_DOCKER: 1          # Custom env variable used for IP resolution
     depends_on:
       - mosquitto
     volumes:
@@ -43,6 +43,8 @@ services:
     image: grafana/grafana-oss
     container_name: grafana
     restart: unless-stopped
+    environment:
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: '50ms'    # Sets min refresh rate of grafana dashboard
     volumes:
       - grafana_storage:/var/lib/grafana
     ports:
