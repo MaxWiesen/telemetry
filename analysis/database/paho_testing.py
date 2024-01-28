@@ -3,6 +3,7 @@ from numpy.random import default_rng
 import time
 import datetime
 import pickle
+import json
 import requests
 import logging
 from tqdm import tqdm
@@ -10,6 +11,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from pathlib import Path
+from psycopg.types.json import Jsonb
 
 from stack.ingest.mqtt_handler import mosquitto_connect
 from analysis.sql_utils.db_handler import get_table_column_specs
@@ -56,16 +58,16 @@ class DataTester:
             size = 1
         # If point, return a tuple of longitude and latitude
         elif dtype == 'point':
-            res = [self.get_random_data(float, 1, as_scalar=True, low=-180, high=180),
-                   self.get_random_data(float, 1, as_scalar=True, low=-90, high=90)]
+            res = [float(self.get_random_data(float, 1, as_scalar=True, low=-180, high=180)),
+                   float(self.get_random_data(float, 1, as_scalar=True, low=-90, high=90))]
         # If bool or int, use default_rng.integers method with some argument manipulation
         elif dtype is bool or np.issubdtype(dtype, np.integer):
-            res = self.rng.integers(0, 2 if dtype is bool else 32767, size=size, dtype=dtype)
+            res = [int(val) for val in self.rng.integers(0, 2 if dtype is bool else 32767, size=size, dtype=int)]
         # If float, use default_rng.random method with [0, 1) --> [low/min, high/max) transformation algorithm
         elif np.issubdtype(dtype, np.floating):
             # Algorithm used is (big - small) * random(0-1) + small
-            res = (kwargs.get('high', kwargs.get('max', 1)) - kwargs.get('low', kwargs.get('min', 0))) * \
-                self.rng.random(size, dtype) + kwargs.get('low', kwargs.get('min', 0))
+            res = [float(val) for val in (kwargs.get('high', kwargs.get('max', 1)) - kwargs.get('low', kwargs.get('min', 0))) * \
+                   self.rng.random(size, dtype) + kwargs.get('low', kwargs.get('min', 0))]
         # If str, bacon
         elif dtype is str:
             res = [requests.get('https://baconipsum.com/api/',
@@ -85,7 +87,7 @@ class DataTester:
         :param db:      bool indicating whether entire DB description is desired
         :param tables:  str | list indicating which table(s) is desired
         :param rm_cols: str | list | dict indicating which columns to remove or if dict, which columns to
-                                          remove from which table (format: {'electronics': ['imd_on'], 'dynamics': ...}
+                                          remove from which table (format: {'electronics': ['imd_on'], 'dynamics': ...})
         :param get_specs: kwargs to pass to get_table_columns_specs
 
         :return: db_description (see get_table_column_specs for return format details)
@@ -127,6 +129,8 @@ class DataTester:
                 row[col] = time.time()
             elif dtype is float:
                 row[col] = self.get_random_data(dtype, min=0, max=100, size=5 if is_list else 1)
+            elif dtype is Jsonb:
+                row[col] = Jsonb({'fake_jsonb_data': self.get_random_data(int, 3)})
             else:
                 row[col] = self.get_random_data(dtype, size=5 if is_list or col == 'gps' else 1)
         return row
@@ -168,7 +172,7 @@ class DataTester:
 
         :return: returns 0 for successful runs
         """
-        client = mosquitto_connect()
+        client = kwargs.pop('client', mosquitto_connect('paho_tester'))
         db_desc = self.get_desc(tables=tables, rm_cols=rm_cols, **kwargs)
 
         with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
@@ -187,9 +191,7 @@ class DataTester:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     client = mosquitto_connect('max_test')
-    client.publish('/data/trash', 'Silly Goose')
+    dbtest = DataTester()
+    dbtest.single_table_test('dynamics', 1000, .1, ['event_id'], client=client)
     client.disconnect()
-    # dt = DataTester()
-    # dt.single_table_test('dynamics', 1000, .1, ['event_id'])
-    # print(dt.create_row(dt.get_desc(tables='dynamics')['dynamics']))
     # dt.concurrent_tables_test(['dynamics', 'electronics'], 5000, .01, ['event_id'])
