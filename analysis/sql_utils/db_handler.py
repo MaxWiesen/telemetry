@@ -12,7 +12,7 @@ from psycopg.types.json import Jsonb
 def get_table_column_specs(force=False, verbose=False):
     """
     Gets description of DB layout using either recent pkl file or request to database. Returns description in form of
-    dict as follows: {'power': [('cooling_flow', <class 'float'>, False), (col2, type2, is_list2), ...], table2: [...]}
+    dict as follows: {'power': {'cooling_flow': (<class 'float'>, False), col2: (type2, is_list2), ...}, table2: {...}}
 
     :param force:           bool determines whether to force refresh of cached description (pkl file)
     :param verbose:         bool used to pretty print most updated DB layout, only works if debugging level includes info
@@ -206,15 +206,15 @@ class DBHandler:
         with DBHandler().connect(target, user) as cnx:
             with cnx.cursor() as cur:
                 # Set start_/end_time
-                cur.execute(f'''UPDATE event SET {'start' if start else 'end'}_time = {now}
-                                    WHERE event_id = {event_id}
-                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
+                cur.execute(f'''UPDATE event SET {'start' if start else 'end'}_time = {now} 
+                                WHERE event_id = {event_id}
+                                RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
                 return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    print(DBHandler.simple_select())
+    get_table_column_specs(True, True)
     # d = {'time': 19288, 'frw_acc': [99.0133716054641, 85.64651514227279, 31.696477091949284, 54.52213555162191, 54.2317917847808], 'flw_acc': [1.703249223495884, 13.023149593120708, 73.93942070096864, 95.99276140676814, 0.6369991788708562], 'brw_acc': [7.420226144130082, 13.822294911183286, 83.20297370455478, 10.289661327934308, 23.00130126023412], 'blw_acc': [73.4511903705272, 15.959505406213925, 90.17788150888789, 13.291596300229369, 4.424584938348475], 'body1_acc': [94.11942339562613, 84.47629271886635, 27.52693689142195, 84.60125031829965, 42.760604229844155], 'body1_ang': [65.98816195572515, 27.234856220926616, 52.35924496805096, 15.977586859108984, 51.84177096471721], 'body2_ang': [48.033919542956895, 88.11454221070423, 98.74227227107748, 81.88160455201, 29.3983623402709], 'body2_acc': [30.019065771313713, 91.0846544175037, 89.71441037885677, 26.212993887542403, 48.839396938308255], 'body3_acc': [69.85504273035421, 90.07982624300931, 28.816454241116052, 0.39004040978948273, 75.7664490320731], 'body3_ang': [21.374140726125745, 42.22324264727002, 37.93146289657039, 65.80943127904966, 29.02254001358343], 'accel_pedal_pos': 39.37028376348777, 'brake_pressure': 28.779001462661125, 'motor_rpm': 22081, 'torque_command': 20931, 'gps': [-63.41273639873167, -54.05523687471205]}
     # DBHandler.insert('dynamics', data=d, returning='gps')
     # print(DBHandler.insert(table='drive_day', target='PROD', user='electric', data={'date': datetime.date.today().isoformat(), 'power_limit': 75000, 'conditions': 'Testing'}, returning='day_id'))
