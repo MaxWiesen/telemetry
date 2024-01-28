@@ -3,13 +3,12 @@ import json
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parents[3]))
-
 from flask import Flask, render_template, url_for, request, redirect
+
 from analysis.sql_utils.db_handler import DBHandler
 from stack.ingest.mqtt_handler import mosquitto_connect
 
 app = Flask(__name__)
-
 
 @app.route('/', methods=['GET'])
 def index():
@@ -32,6 +31,7 @@ def create_event():
     day_id, event_id = DBHandler.insert(table='event', target='PROD', user='electric', data=request.form, returning=['day_id', 'event_id'])
     client = mosquitto_connect('flask_sender')
     client.publish('config/flask', json.dumps({'event_id': event_id}, indent=4))
+    client.disconnect()
     return render_template('event_tracker.html', event_id=event_id)
 
 
@@ -42,8 +42,12 @@ def set_event_time():
     if 'start' not in request.form:
         client = mosquitto_connect('flask_sender')
         client.publish('config/flask', json.dumps({'end_event': True}, indent=4))
+        client.disconnect()
     return render_template('event_tracker.html', event_id=event_id)
 
+@app.route('/texas_tune/', methods=['GET'])
+def vcu_parameters():
+    return render_template('texas_tune.html')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+    app.run(debug=True)
