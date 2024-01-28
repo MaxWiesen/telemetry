@@ -2,17 +2,97 @@
 
 {% block head %}
     <title>Telemetry Injection Tool</title>
+    <script src="{{ url_for('static', filename='js/stopWatch.js') }}"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}"/>
 {% endblock %}
 
 {% block body %}
-    <div>
-        <h1>Create New Drive Day</h1>
-        <form action="/set_event_time/" method="POST">
-            {# Hidden Event ID passthrough #}
-            <input type="hidden" id="event_id" name="event_id" value="{{ event_id }}">
+<div class="container" alig3n="center">
+    <div class="row">
+        <div class="col-md-6">
+            <h2>Timer</h2>
 
-            <button type="submit" id="start" name="start" value="start">Start Time</button>
-            <button type="submit" id="end" name="end" value="end">End Time</button>
-        </form>
+            <h2 class="time" id="timer">00:00.000</h2>
+
+            <div class="buttons">
+                <div class="start-stop">
+                    <button type="button" id="startButton" class="btn-success btn-lg">START</button>
+                    <button type="button" id="stopButton" class="btn-danger btn-lg">STOP</button>
+                </div>
+                <div style="margin-top:10px;">
+                    <button type="button" id="turnButton" class="reset-btn btn-dark btn-lg">Start Turn</button>
+                    <button type="button" id="accelButton" class="reset-btn btn-dark btn-lg">Start Acceleration</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <table id="turn-table" class="table">
+                <thead class="thead-dark">
+                    <tr>
+                        <th scope="col">Turn #</th>
+                        <th scope="col">Time Start</th>
+                        <th scope="col">Time End</th>
+                        <th scope="col">Notes</th>
+                    </tr>
+                </thead>
+            </table>
+
+            <table id="accel-table" class="table">
+                <thead class="thead-dark">
+                    <tr>
+                        <th scope="col">Accel #</th>
+                        <th scope="col">Time Start</th>
+                        <th scope="col">Time End</th>
+                        <th scope="col">Notes</th>
+                    </tr>
+                </thead>
+            </table>
+
+            <div>
+                <button type="submit" id="save" class="btn btn-primary btn-lg btn-block">Save</button>
+            </div>
+        </div>
+        
+
+
+        <script>
+            var clock = document.getElementById('timer');
+            var tab = document.getElementById('data-table');
+
+            var startButton = document.getElementById('startButton');
+            var stopButton = document.getElementById('stopButton');
+            var turnButton = document.getElementById('turnButton');
+            var accelButton = document.getElementById('accelButton')
+
+            var saveButton = document.getElementById('save');
+            saveButton.setAttribute("disabled", true)
+
+            var watch = new Stopwatch(timer, tab);
+
+            startButton.addEventListener('click', function() {
+                saveButton.setAttribute("disabled", true)
+                watch.start();
+            })
+
+            stopButton.addEventListener('click', function() {
+                saveButton.removeAttribute("disabled")
+                watch.stop();
+            });
+
+            turnButton.addEventListener('click', function() {
+                watch.turn();
+            });
+
+            accelButton.addEventListener('click', function() {
+                watch.accel();
+            });
+
+            saveButton.addEventListener('click', function() {
+                watch.tableToJSON(document.getElementById('turn-table'), 'http://127.0.0.1:5001/turn_data');
+                watch.tableToJSON(document.getElementById('accel-table'), 'http://127.0.0.1:5001/accel_data');
+            });
+        </script>
     </div>
+</div>
 {% endblock %}
