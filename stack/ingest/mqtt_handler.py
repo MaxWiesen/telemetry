@@ -51,7 +51,7 @@ def main():
                 try:
                     payload = pickle.loads(msg.payload)
                 except pickle.UnpicklingError:
-                    payload = json.loads(msg.payload)
+                    payload = json.loads(msg.payload.decode().replace("'", '"'))
                 payload['event_id'] = os.getenv('EVENT_ID')
                 DBHandler.insert(table, target='PROD', user='electric', data=payload)
         else:
