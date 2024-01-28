@@ -44,7 +44,7 @@ services:
     container_name: grafana
     restart: unless-stopped
     environment:
-      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: '50ms'    # Sets min refresh rate of grafana dashboard
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: '49ms'    # Sets min refresh rate of grafana dashboard
     volumes:
       - grafana_storage:/var/lib/grafana
     ports:
