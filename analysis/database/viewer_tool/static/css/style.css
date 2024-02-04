@@ -39,16 +39,19 @@ input+input {
 }
 
 .flex-container {
-  margin-left: 10%;
+  margin-left: 150px;
   display: flex;
   flex-direction: row;
   padding: 0;
   flex-wrap: wrap;
+  justify-content: space-around;
+  padding-right: 50px;
+  gap: 10px;
+  width: calc(100%-150px);
 }
 
 .canvas{
-  width: 42%;
-  height: 33%;
+
 }
 
 h1,
@@ -67,8 +70,8 @@ table {
   border-collapse: collapse;
   border: solid black 1px;
   border-radius: 6px;
-  height: 10%;
-  width: 5%;
+  margin-left: 10px;
+  margin-right: 10px;
 }
 
 
@@ -76,8 +79,6 @@ td,
 th {
   border-left: solid black 1px;
   border-top: solid black 1px;
-  height: 33%;
-  width: 10%;
 }
 
 

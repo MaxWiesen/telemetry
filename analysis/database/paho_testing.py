@@ -90,4 +90,6 @@ def main():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    main()
+    client = mosquitto_connect('paho_tester')
+    client.publish('data/high_f', payload=pickle.dumps("{'accel_pedal_pos': 30.614096520766875, 'brake_pressure': 16.516149589439998, 'motor_rpm': 32599, 'torque_command': 4597, 'gps': [168.76390118707695, 24.883174273483775], 'imd_on': True, 'hv_contactor_on': True, 'pre_c_contactor_on': True, 'inline_cooling_temp': 53.21072278995247, 'cooling_flow': 89.06544233041728}"))
+    client.disconnect()
