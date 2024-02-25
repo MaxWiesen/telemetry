@@ -1,53 +1,15 @@
--- Database generated with pgModeler (PostgreSQL Database Modeler).
--- pgModeler version: 1.0.1
--- PostgreSQL version: 15.0
--- Project Site: pgmodeler.io
--- Model Author: ---
--- -- object: electric | type: ROLE --
--- -- DROP ROLE IF EXISTS electric;
--- CREATE ROLE electric WITH 
--- 	SUPERUSER
--- 	CREATEDB
--- 	CREATEROLE
--- 	INHERIT
--- 	LOGIN
--- 	REPLICATION
--- 	BYPASSRLS
--- 	 PASSWORD '2fast2quick';
--- -- ddl-end --
--- 
--- object: grafana | type: ROLE --
--- DROP ROLE IF EXISTS grafana;
-CREATE ROLE grafana WITH 
+CREATE ROLE grafana WITH
 	LOGIN
 	 PASSWORD 'frontend'
-	CONNECTION LIMIT 5;
--- ddl-end --
+	CONNECTION LIMIT 10;
+GRANT pg_read_all_data TO grafana;
 
--- object: analysis | type: ROLE --
--- DROP ROLE IF EXISTS analysis;
-CREATE ROLE analysis WITH 
+CREATE ROLE analysis WITH
 	LOGIN
 	 PASSWORD 'north_dakota'
-	CONNECTION LIMIT 5;
--- ddl-end --
+	CONNECTION LIMIT 10;
+GRANT pg_read_all_data TO analysis;
 
-
--- Database creation must be performed outside a multi lined SQL file. 
--- These commands were put in this file only as a convenience.
--- 
--- object: telemetry | type: DATABASE --
--- DROP DATABASE IF EXISTS telemetry;
--- CREATE DATABASE telemetry
---	OWNER = electric;
--- ddl-end --
-
-
-SET check_function_bodies = false;
--- ddl-end --
-
--- object: public.get_event_index | type: FUNCTION --
--- DROP FUNCTION IF EXISTS public.get_event_index(smallint,smallint) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_event_index (car smallint, day smallint)
 	RETURNS smallint
 	LANGUAGE plpgsql
@@ -65,289 +27,203 @@ BEGIN
 END;
 $$;
 
--- ddl-end --
 ALTER FUNCTION public.get_event_index(smallint,smallint) OWNER TO electric;
--- ddl-end --
 
--- object: public.drive_day | type: TABLE --
--- DROP TABLE IF EXISTS public.drive_day CASCADE;
+-- Drive Day Table
 CREATE TABLE public.drive_day (
-	day_id smallserial NOT NULL,
-	date date NOT NULL,
-	power_limit integer,
-	conditions text,
+	day_id          smallserial NOT NULL,
+	date            date        NOT NULL,
+	power_limit     integer,
+	conditions      text,
 	CONSTRAINT drive_day_pk PRIMARY KEY (day_id)
 );
--- ddl-end --
 ALTER TABLE public.drive_day OWNER TO electric;
--- ddl-end --
 
--- object: public.lut_driver | type: TABLE --
--- DROP TABLE IF EXISTS public.lut_driver CASCADE;
+-- LUT for Driver IDs
 CREATE TABLE public.lut_driver (
-	driver_id smallint NOT NULL,
-	driver_name text NOT NULL,
-	driver_weight smallint,
+	driver_id       smallint    NOT NULL,
+	driver_name     text        NOT NULL,
+	driver_weight   smallint,
 	CONSTRAINT lut_driver_pk PRIMARY KEY (driver_id)
 );
--- ddl-end --
-ALTER TABLE public.lut_driver OWNER TO electric;
--- ddl-end --
-
 INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'0', E'Other', DEFAULT);
--- ddl-end --
-INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'1', E'Jaiden Patel', DEFAULT);
--- ddl-end --
+INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'1', E'Rylan Hanks', DEFAULT);
 INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'2', E'Sohan Agnihotri', DEFAULT);
--- ddl-end --
 INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'3', E'Dylan Hammerback', DEFAULT);
--- ddl-end --
-INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'4', E'Andrew Zhang', DEFAULT);
--- ddl-end --
+INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'4', E'Andrew Cloran', DEFAULT);
 INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'5', E'Ali Jensen', DEFAULT);
--- ddl-end --
+INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'6', E'David Easter', DEFAULT);
 
--- object: public.lut_location | type: TABLE --
--- DROP TABLE IF EXISTS public.lut_location CASCADE;
+-- LUT for Location IDs
 CREATE TABLE public.lut_location (
-	location_id smallint NOT NULL,
-	area text NOT NULL,
-	track text NOT NULL,
+	location_id     smallint    NOT NULL,
+	area            text        NOT NULL,
+	track           text        NOT NULL,
 	CONSTRAINT lut_location_pk PRIMARY KEY (location_id)
 );
--- ddl-end --
-ALTER TABLE public.lut_location OWNER TO electric;
--- ddl-end --
-
 INSERT INTO public.lut_location (location_id, area, track) VALUES (E'0', E'Other', E'Other');
--- ddl-end --
 INSERT INTO public.lut_location (location_id, area, track) VALUES (E'1', E'Pickle', E'Innovation Blvd');
--- ddl-end --
 INSERT INTO public.lut_location (location_id, area, track) VALUES (E'2', E'Pickle', E'North Lot');
--- ddl-end --
 INSERT INTO public.lut_location (location_id, area, track) VALUES (E'3', E'Pickle', E'South Lot');
--- ddl-end --
 INSERT INTO public.lut_location (location_id, area, track) VALUES (E'4', E'COTA', E'Lot J');
--- ddl-end --
 INSERT INTO public.lut_location (location_id, area, track) VALUES (E'5', E'COTA', E'Lot H');
--- ddl-end --
 INSERT INTO public.lut_location (location_id, area, track) VALUES (E'6', E'COTA', E'Go Kart Track');
--- ddl-end --
 
--- object: public.lut_car | type: TABLE --
--- DROP TABLE IF EXISTS public.lut_car CASCADE;
+
+-- LUT for Car IDs
 CREATE TABLE public.lut_car (
-	car_id smallint NOT NULL,
-	car_name text NOT NULL,
+	car_id          smallint    NOT NULL,
+	car_name        text        NOT NULL,
 	CONSTRAINT lut_car_pk PRIMARY KEY (car_id)
 );
--- ddl-end --
-ALTER TABLE public.lut_car OWNER TO electric;
--- ddl-end --
-
 INSERT INTO public.lut_car (car_id, car_name) VALUES (E'1', E'Easy Driver');
--- ddl-end --
 INSERT INTO public.lut_car (car_id, car_name) VALUES (E'2', E'Lady Luck');
--- ddl-end --
 
--- object: public.lut_event_type | type: TABLE --
--- DROP TABLE IF EXISTS public.lut_event_type CASCADE;
+
+-- LUT for Event Types
 CREATE TABLE public.lut_event_type (
-	type_id smallint NOT NULL,
-	event_type text NOT NULL,
+	type_id         smallint    NOT NULL,
+	event_type      text        NOT NULL,
 	CONSTRAINT lut_event_type_pk PRIMARY KEY (type_id)
 );
--- ddl-end --
-ALTER TABLE public.lut_event_type OWNER TO electric;
--- ddl-end --
-
 INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'0', E'Other');
--- ddl-end --
 INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'1', E'Endurance');
--- ddl-end --
 INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'2', E'Autocross');
--- ddl-end --
 INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'3', E'Skidpad');
--- ddl-end --
 INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'4', E'Straightline Acceleration');
--- ddl-end --
 INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'5', E'Straightline Breaking');
--- ddl-end --
 
--- object: public.event | type: TABLE --
--- DROP TABLE IF EXISTS public.event CASCADE;
+
+-- Event Table
 CREATE TABLE public.event (
-	event_id smallserial NOT NULL,
-	day_id smallint NOT NULL,
-	creation_time bigint NOT NULL,
-	start_time bigint,
-	end_time bigint,
-	car_id smallint NOT NULL,
-	driver_id smallint NOT NULL,
-	location_id smallint NOT NULL,
-	event_type smallint NOT NULL,
-	event_index smallint GENERATED ALWAYS AS (public.get_event_index(car_id, day_id)) STORED,
-	car_weight smallint,
-	tow_angle real,
-	camber real,
-	ride_height real,
+	event_id        smallserial NOT NULL,
+	day_id          smallint    NOT NULL,
+	creation_time   bigint      NOT NULL,
+	start_time      bigint,
+	end_time        bigint,
+	car_id          smallint    NOT NULL,
+	driver_id       smallint    NOT NULL,
+	location_id     smallint    NOT NULL,
+	event_type      smallint    NOT NULL,
+	event_index     smallint    GENERATED ALWAYS AS (public.get_event_index(car_id, day_id)) STORED,
+	car_weight      smallint,
+	tow_angle       real,
+	camber          real,
+	ride_height     real,
 	ackerman_adjustment real,
 	shock_dampening smallint,
-	power_limit integer,
-	torque_limit smallint,
-	frw_pressure real,
-	flw_pressure real,
-	brw_pressure real,
-	blw_pressure real,
-	front_wing_on boolean,
-	rear_wing_on boolean,
-	regen_on boolean,
-	undertray_on boolean,
-	CONSTRAINT event_pk PRIMARY KEY (event_id)
+	power_limit     integer,
+	torque_limit    smallint,
+	frw_pressure    real,
+	flw_pressure    real,
+	brw_pressure    real,
+	blw_pressure    real,
+	front_wing_on   boolean,
+	rear_wing_on    boolean,
+	regen_on        boolean,
+	undertray_on    boolean,
+	CONSTRAINT event_pk PRIMARY KEY (event_id),
+    CONSTRAINT fk_event_id FOREIGN KEY(day_id) REFERENCES drive_day(day_id),
+    CONSTRAINT fk_car_id FOREIGN KEY(car_id) REFERENCES lut_car(car_id),
+    CONSTRAINT fk_driver_id FOREIGN KEY(driver_id) REFERENCES lut_driver(driver_id),
+    CONSTRAINT fk_location_id FOREIGN KEY(location_id) REFERENCES lut_location(location_id),
+    CONSTRAINT fk_event_type FOREIGN KEY(event_type) REFERENCES lut_event_type(type_id)
 );
--- ddl-end --
-ALTER TABLE public.event OWNER TO electric;
--- ddl-end --
 
--- object: public.dynamics | type: TABLE --
--- DROP TABLE IF EXISTS public.dynamics CASCADE;
+-- Dynamics table
 CREATE TABLE public.dynamics (
-	event_id smallint NOT NULL,
-	"time" bigint NOT NULL,
-	frw_acc double precision[],
-	flw_acc double precision[],
-	brw_acc double precision[],
-	blw_acc double precision[],
-	body1_acc double precision[],
-	body1_ang double precision[],
-	body2_ang double precision[],
-	body2_acc double precision[],
-	body3_acc double precision[],
-	body3_ang double precision[],
-	accel_pedal_pos real,
-	brake_pressure real,
-	motor_rpm integer,
-	torque_command smallint,
-	gps point
-
+    event_id        smallint NOT NULL,
+    "time"          bigint   NOT NULL,
+    torque_request  real,
+    vcu_position    real[],
+    vcu_velocity    real[],
+    vcu_accel       real[],
+    gps             point,
+    gps_velocity    real,
+    gps_heading     real,
+    imu_accel       real[][],
+    imu_gyro        real[][],
+    wheel_speed     real[],
+    inverter_v      real,
+    inverter_c      real,
+    inverter_rpm    smallint,
+    inverter_torque real,
+    CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
 );
--- ddl-end --
-ALTER TABLE public.dynamics OWNER TO electric;
--- ddl-end --
 
--- object: public.power | type: TABLE --
--- DROP TABLE IF EXISTS public.power CASCADE;
-CREATE TABLE public.power (
-	event_id smallint NOT NULL,
-	"time" bigint NOT NULL,
-	bms_cells_v real[],
-	pack_voltage real,
-	pack_current real,
-	lv_cells_v real[],
-	lv_voltage real,
-	lv_current real,
-	ambient_temp real,
-	bms_pack_temp jsonb[],
-	bms_balancing_temp jsonb[],
-	fan_speed jsonb[],
-	inline_cooling_temp real,
-	cooling_flow real
 
+-- Controls table
+CREATE TABLE public.controls (
+    event_id        smallint NOT NULL,
+    "time"          bigint   NOT NULL,
+    inverter_on     boolean,
+    r2d_buzzer_on   boolean,
+    brake_light_on  boolean,
+    drs_on          boolean,
+    apps_fault      boolean,
+    bse_fault       boolean,
+    stompp_fault    boolean,
+    steering_fault  boolean,
+    CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
 );
--- ddl-end --
-ALTER TABLE public.power OWNER TO electric;
--- ddl-end --
 
--- object: public.electronics | type: TABLE --
--- DROP TABLE IF EXISTS public.electronics CASCADE;
-CREATE TABLE public.electronics (
-	event_id smallint NOT NULL,
-	"time" bigint NOT NULL,
-	imd_on boolean,
-	hv_contactor_on boolean,
-	pre_c_contactor_on boolean,
-	ls_contactor_on boolean,
-	lv_battery_status smallint
-
+-- Pack table
+CREATE TABLE public.pack (
+    event_id        smallint NOT NULL,
+    "time"          bigint   NOT NULL,
+    hv_pack_v       real,
+    hv_tractive_v   real,
+    hv_c            real,
+    lv_v            real,
+    lv_c            real,
+    contactor_state smallint,
+    avg_cell_v      real,
+    avg_cell_temp   smallint,
+    CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
 );
--- ddl-end --
-ALTER TABLE public.electronics OWNER TO electric;
--- ddl-end --
 
--- object: public.classifier | type: TABLE --
--- DROP TABLE IF EXISTS public.classifier CASCADE;
+
+-- Diagnostics table
+CREATE TABLE public.diagnostics (
+    event_id        smallint NOT NULL,
+    "time"          bigint   NOT NULL,
+    current_error   boolean,
+    latching_fault  boolean,
+    cells_v         real[],
+    hv_charge_state real,
+    lv_charge_state real,
+    CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
+);
+
+
+-- Thermal table
+CREATE TABLE public.thermal
+(
+    event_id            smallint NOT NULL,
+    "time"              bigint   NOT NULL,
+    cells_temp          smallint[],
+    ambient_temp        smallint,
+    inverter_temp       smallint,
+    motor_temp          smallint,
+    water_motor_temp    smallint,
+    water_inverter_temp smallint,
+    water_rad_temp      smallint,
+    rad_fan_set         smallint,
+    rad_fan_rpm         smallint,
+    batt_fan_set        smallint,
+    batt_fan_rpm        smallint,
+    flow_rate           smallint,
+    CONSTRAINT fk_event_id FOREIGN KEY (event_id) REFERENCES event (event_id)
+);
+ALTER TABLE public.thermal OWNER to electric;
+
+
+-- Classifier table
 CREATE TABLE public.classifier (
-	event_id smallint NOT NULL,
-	type text NOT NULL,
-	start_time bigint,
-	end_time bigint,
-    notes text
+    event_id            smallint    NOT NULL,
+    type                text        NOT NULL,
+    start_time          bigint      NOT NULL,
+    end_time            bigint,
+    notes               text,
+    CONSTRAINT fk_event_id FOREIGN KEY (event_id) REFERENCES event (event_id)
 );
--- ddl-end --
-ALTER TABLE public.classifier OWNER TO electric;
--- ddl-end --
-
--- object: "FK_day_id" | type: CONSTRAINT --
--- ALTER TABLE public.event DROP CONSTRAINT IF EXISTS "FK_day_id" CASCADE;
-ALTER TABLE public.event ADD CONSTRAINT "FK_day_id" FOREIGN KEY (day_id)
-REFERENCES public.drive_day (day_id) MATCH SIMPLE
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: "FK_car_id" | type: CONSTRAINT --
--- ALTER TABLE public.event DROP CONSTRAINT IF EXISTS "FK_car_id" CASCADE;
-ALTER TABLE public.event ADD CONSTRAINT "FK_car_id" FOREIGN KEY (car_id)
-REFERENCES public.lut_car (car_id) MATCH SIMPLE
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: "FK_driver_id" | type: CONSTRAINT --
--- ALTER TABLE public.event DROP CONSTRAINT IF EXISTS "FK_driver_id" CASCADE;
-ALTER TABLE public.event ADD CONSTRAINT "FK_driver_id" FOREIGN KEY (driver_id)
-REFERENCES public.lut_driver (driver_id) MATCH SIMPLE
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: "FK_location_id" | type: CONSTRAINT --
--- ALTER TABLE public.event DROP CONSTRAINT IF EXISTS "FK_location_id" CASCADE;
-ALTER TABLE public.event ADD CONSTRAINT "FK_location_id" FOREIGN KEY (location_id)
-REFERENCES public.lut_location (location_id) MATCH SIMPLE
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: "FK_event_type" | type: CONSTRAINT --
--- ALTER TABLE public.event DROP CONSTRAINT IF EXISTS "FK_event_type" CASCADE;
-ALTER TABLE public.event ADD CONSTRAINT "FK_event_type" FOREIGN KEY (event_type)
-REFERENCES public.lut_event_type (type_id) MATCH SIMPLE
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: "FK_event_id" | type: CONSTRAINT --
--- ALTER TABLE public.dynamics DROP CONSTRAINT IF EXISTS "FK_event_id" CASCADE;
-ALTER TABLE public.dynamics ADD CONSTRAINT "FK_event_id" FOREIGN KEY (event_id)
-REFERENCES public.event (event_id) MATCH SIMPLE
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: "FK_event_id" | type: CONSTRAINT --
--- ALTER TABLE public.power DROP CONSTRAINT IF EXISTS "FK_event_id" CASCADE;
-ALTER TABLE public.power ADD CONSTRAINT "FK_event_id" FOREIGN KEY (event_id)
-REFERENCES public.event (event_id) MATCH SIMPLE
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: "FK_event_id" | type: CONSTRAINT --
--- ALTER TABLE public.electronics DROP CONSTRAINT IF EXISTS "FK_event_id" CASCADE;
-ALTER TABLE public.electronics ADD CONSTRAINT "FK_event_id" FOREIGN KEY (event_id)
-REFERENCES public.event (event_id) MATCH SIMPLE
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: "FK_event_id" | type: CONSTRAINT --
--- ALTER TABLE public.classifier DROP CONSTRAINT IF EXISTS "FK_event_id" CASCADE;
-ALTER TABLE public.classifier ADD CONSTRAINT "FK_event_id" FOREIGN KEY (event_id)
-REFERENCES public.event (event_id) MATCH SIMPLE
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
-
