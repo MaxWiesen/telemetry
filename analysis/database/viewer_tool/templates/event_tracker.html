@@ -89,8 +89,8 @@
             });
 
             saveButton.addEventListener('click', function() {
-                watch.tableToJSON(document.getElementById('turn-table'), 'http://127.0.0.1:5001/turn_data');
-                watch.tableToJSON(document.getElementById('accel-table'), 'http://127.0.0.1:5001/accel_data');
+                watch.tableToJSON(document.getElementById('turn-table'), 'http://localhost:5000/turn_data');
+                watch.tableToJSON(document.getElementById('accel-table'), 'http://localhost:5000/accel_data');
             });
         </script>
     </div>
