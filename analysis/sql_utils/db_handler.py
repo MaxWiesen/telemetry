@@ -12,38 +12,40 @@ from psycopg.types.json import Jsonb
 def get_table_column_specs(force=False, verbose=False):
     """
     Gets description of DB layout using either recent pkl file or request to database. Returns description in form of
-    dict as follows: {'power': {'cooling_flow': (<class 'float'>, False), col2: (type2, is_list2), ...}, table2: {...}}
+    dict as follows: {'power': {'cooling_flow': (<class 'float'>, 0), col2: (type2, num_dimension), ...}, table2: {...}}
 
     :param force:           bool determines whether to force refresh of cached description (pkl file)
     :param verbose:         bool used to pretty print most updated DB layout, only works if debugging level includes info
 
     :return db_description: dict represents current layout of DB--see function description for more explanation
     """
-    desc_path = './DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('analysis/', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
+    desc_path = '/ingest/DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('/analysis', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
 
     force = force or not Path(desc_path).is_file()      # force true if force or the DB_description.pkl file DNE
     if not force:
-        last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
+        try:
+            last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
+        except IsADirectoryError:
+            force = True
 
     now = time.time()
     if force or now - last_update > 86_400 * 1:     # Update if it has been more than X days since last update
-        data = DBHandler.simple_select('''SELECT t.tablename, a.attname, 
+        data = DBHandler.simple_select('''SELECT t.tablename, a.attname, a.attndims,
                                        format_type(a.atttypid, a.atttypmod) as data_type FROM pg_tables t 
                                        JOIN pg_attribute a on a.attrelid::regclass = t.tablename::regclass 
                                        WHERE t.schemaname = 'public' AND a.attnum > 0''',
                                        target='PROD', user='electric', return_type=pd.DataFrame, index_col='tablename')
-        data[['data_type', 'is_list']] = data.data_type.str.rsplit('[]', expand=True)     # Split [] if exists for is_list
-        data.loc[data.attname == 'gps', 'is_list'] = ''
-        data.loc[:, 'is_list'] = data.is_list == ''
+        data.loc[:, 'data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
+        data.loc[data.attname == 'gps', 'attndims'] = 1
         data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'double precision': float,
                                 'text': str, 'boolean': bool, 'jsonb': Jsonb, 'date': datetime.date}, inplace=True)
-        table_column_specs = {table: {row.attname: (row.data_type, row.is_list) for _, row in
+        table_column_specs = {table: {row.attname: (row.data_type, row.attndims) for _, row in
                                       data.loc[data.index == table].iterrows()} for table in data.index.unique()}
         pickle.dump((now, table_column_specs), open(desc_path, 'wb'))
         logging.info(f'\t\ttable_column_specs {"forcefully updated" if force else "out of date and updated"}.')
 
     if verbose:     # Pretty print table column specs
-        [logging.info(f'\t\t{table}\n' + ''.join([f'\n{col:^20} {str(data_type) + is_list * "[]":^30}' for col, (data_type, is_list) in col_data.items()]) +
+        [logging.info(f'\t\t{table}\n' + ''.join([f'\n{col:^20} {str(data_type) + ndims * "[]":^30}' for col, (data_type, ndims) in col_data.items()]) +
                       '\n') for table, col_data in table_column_specs.items()]
     return table_column_specs
 
