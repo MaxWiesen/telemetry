@@ -31,19 +31,19 @@ ALTER FUNCTION public.get_event_index(smallint,smallint) OWNER TO electric;
 
 -- Drive Day Table
 CREATE TABLE public.drive_day (
-	day_id          smallserial NOT NULL,
-	date            date        NOT NULL,
-	power_limit     integer,
-	conditions      text,
+	day_id              smallserial NOT NULL,
+	date                date        NOT NULL,
+	power_limit         integer,
+	conditions          text,
 	CONSTRAINT drive_day_pk PRIMARY KEY (day_id)
 );
 ALTER TABLE public.drive_day OWNER TO electric;
 
 -- LUT for Driver IDs
 CREATE TABLE public.lut_driver (
-	driver_id       smallint    NOT NULL,
-	driver_name     text        NOT NULL,
-	driver_weight   smallint,
+	driver_id           smallint    NOT NULL,
+	driver_name         text        NOT NULL,
+	driver_weight       smallint,
 	CONSTRAINT lut_driver_pk PRIMARY KEY (driver_id)
 );
 INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'0', E'Other', DEFAULT);
@@ -56,9 +56,9 @@ INSERT INTO public.lut_driver (driver_id, driver_name, driver_weight) VALUES (E'
 
 -- LUT for Location IDs
 CREATE TABLE public.lut_location (
-	location_id     smallint    NOT NULL,
-	area            text        NOT NULL,
-	track           text        NOT NULL,
+	location_id         smallint    NOT NULL,
+	area                text        NOT NULL,
+	track               text        NOT NULL,
 	CONSTRAINT lut_location_pk PRIMARY KEY (location_id)
 );
 INSERT INTO public.lut_location (location_id, area, track) VALUES (E'0', E'Other', E'Other');
@@ -72,8 +72,8 @@ INSERT INTO public.lut_location (location_id, area, track) VALUES (E'6', E'COTA'
 
 -- LUT for Car IDs
 CREATE TABLE public.lut_car (
-	car_id          smallint    NOT NULL,
-	car_name        text        NOT NULL,
+	car_id              smallint    NOT NULL,
+	car_name            text        NOT NULL,
 	CONSTRAINT lut_car_pk PRIMARY KEY (car_id)
 );
 INSERT INTO public.lut_car (car_id, car_name) VALUES (E'1', E'Easy Driver');
@@ -82,8 +82,8 @@ INSERT INTO public.lut_car (car_id, car_name) VALUES (E'2', E'Lady Luck');
 
 -- LUT for Event Types
 CREATE TABLE public.lut_event_type (
-	type_id         smallint    NOT NULL,
-	event_type      text        NOT NULL,
+	type_id             smallint    NOT NULL,
+	event_type          text        NOT NULL,
 	CONSTRAINT lut_event_type_pk PRIMARY KEY (type_id)
 );
 INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'0', E'Other');
@@ -96,32 +96,32 @@ INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'5', E'Straight
 
 -- Event Table
 CREATE TABLE public.event (
-	event_id        smallserial NOT NULL,
-	day_id          smallint    NOT NULL,
-	creation_time   bigint      NOT NULL,
-	start_time      bigint,
-	end_time        bigint,
-	car_id          smallint    NOT NULL,
-	driver_id       smallint    NOT NULL,
-	location_id     smallint    NOT NULL,
-	event_type      smallint    NOT NULL,
-	event_index     smallint    GENERATED ALWAYS AS (public.get_event_index(car_id, day_id)) STORED,
-	car_weight      smallint,
-	tow_angle       real,
-	camber          real,
-	ride_height     real,
+	event_id            smallserial NOT NULL,
+	day_id              smallint    NOT NULL,
+	creation_time       bigint      NOT NULL,
+	start_time          bigint,
+	end_time            bigint,
+	car_id              smallint    NOT NULL,
+	driver_id           smallint    NOT NULL,
+	location_id         smallint    NOT NULL,
+	event_type          smallint    NOT NULL,
+	event_index         smallint    GENERATED ALWAYS AS (public.get_event_index(car_id, day_id)) STORED,
+	car_weight          smallint,
+	tow_angle           real,
+	camber              real,
+	ride_height         real,
 	ackerman_adjustment real,
-	shock_dampening smallint,
-	power_limit     integer,
-	torque_limit    smallint,
-	frw_pressure    real,
-	flw_pressure    real,
-	brw_pressure    real,
-	blw_pressure    real,
-	front_wing_on   boolean,
-	rear_wing_on    boolean,
-	regen_on        boolean,
-	undertray_on    boolean,
+	shock_dampening     smallint,
+	power_limit         integer,
+	torque_limit        smallint,
+	frw_pressure        real,
+	flw_pressure        real,
+	brw_pressure        real,
+	blw_pressure        real,
+	front_wing_on       boolean,
+	rear_wing_on        boolean,
+	regen_on            boolean,
+	undertray_on        boolean,
 	CONSTRAINT event_pk PRIMARY KEY (event_id),
     CONSTRAINT fk_event_id FOREIGN KEY(day_id) REFERENCES drive_day(day_id),
     CONSTRAINT fk_car_id FOREIGN KEY(car_id) REFERENCES lut_car(car_id),
@@ -132,66 +132,67 @@ CREATE TABLE public.event (
 
 -- Dynamics table
 CREATE TABLE public.dynamics (
-    event_id        smallint NOT NULL,
-    "time"          bigint   NOT NULL,
-    torque_request  real,
-    vcu_position    real[],
-    vcu_velocity    real[],
-    vcu_accel       real[],
-    gps             point,
-    gps_velocity    real,
-    gps_heading     real,
-    imu_accel       real[][],
-    imu_gyro        real[][],
-    wheel_speed     real[],
-    inverter_v      real,
-    inverter_c      real,
-    inverter_rpm    smallint,
-    inverter_torque real,
+    event_id            smallint NOT NULL,
+    "time"              bigint   NOT NULL,
+    torque_request      real,
+    vcu_position        real[],
+    vcu_velocity        real[],
+    vcu_accel           real[],
+    gps                 point,
+    gps_velocity        real,
+    gps_heading         real,
+    imu_accel           real[],
+    imu_gyro            real[],
+    wheel_speed         real[],
+    inverter_v          real,
+    inverter_c          real,
+    inverter_rpm        smallint,
+    inverter_torque     real,
     CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
 );
 
 
 -- Controls table
 CREATE TABLE public.controls (
-    event_id        smallint NOT NULL,
-    "time"          bigint   NOT NULL,
-    inverter_on     boolean,
-    r2d_buzzer_on   boolean,
-    brake_light_on  boolean,
-    drs_on          boolean,
-    apps_fault      boolean,
-    bse_fault       boolean,
-    stompp_fault    boolean,
-    steering_fault  boolean,
+    event_id            smallint NOT NULL,
+    "time"              bigint   NOT NULL,
+    vcu_flags           bytea,
+    vcu_flags_json      jsonb,
+    apps1_v             real,
+    apps2_v             real,
+    bse1_v              real,
+    bse2_v              real,
+    sus1_v              real,
+    sus2_v              real,
+    steer_v             real,
     CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
 );
 
 -- Pack table
 CREATE TABLE public.pack (
-    event_id        smallint NOT NULL,
-    "time"          bigint   NOT NULL,
-    hv_pack_v       real,
-    hv_tractive_v   real,
-    hv_c            real,
-    lv_v            real,
-    lv_c            real,
-    contactor_state smallint,
-    avg_cell_v      real,
-    avg_cell_temp   smallint,
+    event_id            smallint NOT NULL,
+    "time"              bigint   NOT NULL,
+    hv_pack_v           real,
+    hv_tractive_v       real,
+    hv_c                real,
+    lv_v                real,
+    lv_c                real,
+    contactor_state     smallint,
+    avg_cell_v          real,
+    avg_cell_temp       smallint,
     CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
 );
 
 
 -- Diagnostics table
 CREATE TABLE public.diagnostics (
-    event_id        smallint NOT NULL,
-    "time"          bigint   NOT NULL,
-    current_error   boolean,
-    latching_fault  boolean,
-    cells_v         real[],
-    hv_charge_state real,
-    lv_charge_state real,
+    event_id            smallint NOT NULL,
+    "time"              bigint   NOT NULL,
+    current_errors      boolean,
+    latching_faults     boolean,
+    cells_v             real[],
+    hv_charge_state     real,
+    lv_charge_state     real,
     CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
 );
 
