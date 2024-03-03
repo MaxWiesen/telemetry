@@ -21,12 +21,23 @@ def get_table_column_specs(force=False, verbose=False):
     """
     desc_path = '/ingest/DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('/analysis', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
 
-    force = force or not Path(desc_path).is_file()      # force true if force or the DB_description.pkl file DNE
+    if not os.path.isfile(desc_path):
+        def find_db_description():
+            root_folder = '/analysis' if 'analysis' in os.getcwd() else '/LHR'
+            for root, dirs, files in os.walk(f'{os.getcwd().rsplit(root_folder, 1)[0]}/{root_folder}'):
+                for name in files:
+                    if name == 'DB_description.pkl':
+                        return os.path.abspath(os.path.join(root, name))
+            return None
+        desc_path = find_db_description()
+        force = not bool(desc_path)
+
     if not force:
         try:
             last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
         except IsADirectoryError:
             force = True
+
 
     now = time.time()
     if force or now - last_update > 86_400 * 1:     # Update if it has been more than X days since last update
@@ -38,7 +49,8 @@ def get_table_column_specs(force=False, verbose=False):
         data.loc[:, 'data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
         data.loc[data.attname == 'gps', 'attndims'] = 1
         data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'double precision': float,
-                                'text': str, 'boolean': bool, 'jsonb': Jsonb, 'date': datetime.date}, inplace=True)
+                                'text': str, 'boolean': bool, 'jsonb': Jsonb, 'date': datetime.date, 'bytea': bytearray},
+                               inplace=True)
         table_column_specs = {table: {row.attname: (row.data_type, row.attndims) for _, row in
                                       data.loc[data.index == table].iterrows()} for table in data.index.unique()}
         pickle.dump((now, table_column_specs), open(desc_path, 'wb'))
@@ -133,7 +145,7 @@ class DBHandler:
             table_desc.pop('day_id')
         elif table == 'event':
             data['creation_time'] = int(time.time() * 1000)
-            [table_desc.pop(col) for col in ['event_index', 'event_id']]
+            map(table_desc.pop, ['event_index', 'event_id'])
 
         # Find columns missing from Flask app injection
         missing_cols = [col for col, (_, _) in table_desc.items() if col not in data]
@@ -143,7 +155,17 @@ class DBHandler:
         # Separate NaNs and log
         nan_vals = [val == 0 or bool(val) for _, val in data.items()]
         nans = {key: val for (key, val), nan in zip(data.items(), nan_vals) if not nan}
-        data = {key: table_desc[key][0](val) if key not in ['date', 'gps'] and not isinstance(val, list) else val
+        # out = {}
+        # for (key, val), nan in zip(data.items(), nan_vals):
+        #     print(f'Handling key {key}: {val}')
+        #     if nan:
+        #         if key in ['date', 'gps', 'vcu_flags'] or isinstance(val, (list, bytearray)):
+        #             print('Excluded')
+        #             out[key] = val
+        #         else:
+        #             print('Normal')
+        #             out[key] = table_desc[key][0](val)
+        data = {key: val if key in ['date', 'gps', 'vcu_flags'] or isinstance(val, (list, bytearray)) else table_desc[key][0](val)
                      for (key, val), nan in zip(data.items(), nan_vals) if nan}
         if nans:
             logging.warning(f'\t\tFollowing columns had NaN data: {str(nans).replace(": ", " = ")[1:-1]}')
@@ -182,7 +204,7 @@ class DBHandler:
                     for val in vals: yield val
 
         dtype_map = {float: '%s', int: '%s', str: '%s', bool: '%s', list: '%s', Jsonb: '%s', datetime.date: '%s',
-                     'point': 'point(%s, %s)'}
+                     'point': 'point(%s, %s)', bytearray: '%s'}
         with DBHandler().connect(target, user) as cnx:
             with cnx.cursor() as cur:
                 cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
