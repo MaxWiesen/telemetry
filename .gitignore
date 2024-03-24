@@ -3,3 +3,6 @@
 __pycache__
 /analysis/sql_utils/DB_description.pkl
 .DS_store
+**/.DS_Store
+temp/
+

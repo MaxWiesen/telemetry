@@ -57,18 +57,18 @@
 
 
         <script>
-            var clock = document.getElementById('timer');
-            var tab = document.getElementById('data-table');
+            let clock = document.getElementById('timer');
+            let tab = document.getElementById('data-table');
 
-            var startButton = document.getElementById('startButton');
-            var stopButton = document.getElementById('stopButton');
-            var turnButton = document.getElementById('turnButton');
-            var accelButton = document.getElementById('accelButton')
+            let startButton = document.getElementById('startButton');
+            let stopButton = document.getElementById('stopButton');
+            let turnButton = document.getElementById('turnButton');
+            let accelButton = document.getElementById('accelButton')
 
-            var saveButton = document.getElementById('save');
+            let saveButton = document.getElementById('save');
             saveButton.setAttribute("disabled", true)
 
-            var watch = new Stopwatch(timer, tab);
+            let watch = new Stopwatch(timer, tab);
 
             startButton.addEventListener('click', function() {
                 saveButton.setAttribute("disabled", true)
@@ -88,10 +88,17 @@
                 watch.accel();
             });
 
+            let url = window.location.href
             saveButton.addEventListener('click', function() {
-                watch.tableToJSON(document.getElementById('turn-table'), 'http://127.0.0.1:5001/turn_data');
-                watch.tableToJSON(document.getElementById('accel-table'), 'http://127.0.0.1:5001/accel_data');
+                watch.tableToJSON(document.getElementById('turn-table'), window.location.href+'turn_data');
+                watch.tableToJSON(document.getElementById('accel-table'), window.location.href+'accel_data');
             });
+            
+            if('{{ state | tojson | safe}}' != ""){
+                console.log('{{ state | tojson | safe}}');
+                const state = JSON.parse('{{ state | tojson | safe}}');
+                watch.recoverState(state);
+            }
         </script>
     </div>
 </div>
