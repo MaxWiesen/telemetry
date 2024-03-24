@@ -12,7 +12,6 @@ from analysis.sql_utils.db_handler import DBHandler
 from stack.ingest.mqtt_handler import mosquitto_connect
 
 app = Flask(__name__)
-CORS(app)
 
 @app.route('/', methods=['GET'])
 def index():
