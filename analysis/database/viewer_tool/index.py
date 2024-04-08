@@ -10,6 +10,7 @@ from stack.ingest.mqtt_handler import MQTTHandler
 
 app = Flask(__name__)
 
+
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
@@ -31,7 +32,7 @@ def create_event():
     day_id, event_id = DBHandler.insert(table='event', target='PROD', user='electric', data=request.form, returning=['day_id', 'event_id'])
     mqtt = MQTTHandler()
     mqtt.connect()
-    mqtt.publish('config/flask', json.dumps({'event_id': event_id}, indent=4))
+    mqtt.publish('/config/flask', json.dumps({'event_id': event_id}, indent=4))
     mqtt.disconnect()
     return render_template('event_tracker.html', event_id=event_id)
 
@@ -43,9 +44,10 @@ def set_event_time():
     if 'start' not in request.form:
         mqtt = MQTTHandler()
         mqtt.connect()
-        mqtt.publish('config/flask', json.dumps({'end_event': True}, indent=4))
+        mqtt.publish('/config/flask', json.dumps({'end_event': True}, indent=4))
         mqtt.disconnect()
     return render_template('event_tracker.html', event_id=event_id)
+
 
 @app.route('/tune_data', methods=['GET','POST'])
 def tune_data():
@@ -54,12 +56,14 @@ def tune_data():
     print(json_object)
     return render_template('texas_tune.html')
 
+
 @app.route('/turn_data', methods=['GET','POST'])
 def turn_data():
     data = request.data
     json_object = json.loads(data)
     print(json_object)
     return render_template('event_tracker.html')
+
 
 @app.route('/accel_data', methods=['GET','POST'])
 def accel_data():
@@ -68,10 +72,13 @@ def accel_data():
     print(json_object)
     return render_template('event_tracker.html')
 
-@app.route('/texas_tune/', methods=['GET'])
+
+@app.route('/texas_tune/', methods=['GET', 'POST'])
 def vcu_parameters():
     return render_template('texas_tune.html')
+    if request.method == 'POST':
+        print(request)
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', ssl_context=('./ssl/fullchain.pem', './ssl/privkey.pem'))
