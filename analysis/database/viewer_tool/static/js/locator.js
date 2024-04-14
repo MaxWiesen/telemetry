@@ -15,9 +15,15 @@ if (navigator.geolocation) {
     }, errorCallback, {enableHighAccuracy: true})
 } else {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "https://telemetry.servebeer.com:5000/test", true)
-    xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
-    xhr.send("Error: No geolocation available.\n")
+    let host_ip
+    if ('{{ host_ip }}'.indexOf('local') === -1) {
+        host_ip = 'https://{{ host_ip }}'
+    } else {
+        host_ip = 'http://{{ host_ip }}'
+    }
+    xhr.open('POST', host_ip + ':5000/gates', true)
+    xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8')
+    xhr.send('Error: No geolocation available.\n')
 }
 
 function current_location() {
@@ -59,19 +65,25 @@ function sendLocation(latlng) {
     avg_marker.setStyle({color: 'green'})
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "https://telemetry.servebeer.com:5000/test", true)
-    xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
+    let host_ip
+    if ('{{ host_ip }}'.indexOf('local') === -1) {
+        host_ip = 'https://{{ host_ip }}'
+    } else {
+        host_ip = 'http://{{ host_ip }}'
+    }
+    xhr.open('POST', host_ip + '/gates', true)
+    xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8')
     const body = JSON.stringify({
         latitude: latlng[0],
         longitude: latlng[1]
     })
-    document.getElementById("result").innerText = 'Successfully sent:\n' + body
     xhr.send(body)
+    document.getElementById('result').innerText = 'Successfully sent:\n' + body
 }
 function errorCallback(error) {
     if (error.code === error.TIMEOUT) {
 
     }
     console.log('Errored out: ' + error.code)
-    document.getElementById("result").innerText = 'Errored out: ' + error.code + '\n' + error.message
+    document.getElementById('result').innerText = 'Errored out: ' + error.code + '\n' + error.message
 }
