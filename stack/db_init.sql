@@ -101,6 +101,7 @@ CREATE TABLE public.event (
 	creation_time       bigint      NOT NULL,
 	start_time          bigint,
 	end_time            bigint,
+    status              smallint,
 	car_id              smallint    NOT NULL,
 	driver_id           smallint    NOT NULL,
 	location_id         smallint    NOT NULL,
