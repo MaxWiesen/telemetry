@@ -38,14 +38,13 @@ def get_table_column_specs(force=False, verbose=False):
         except IsADirectoryError:
             force = True
 
-
     now = time.time()
     if force or now - last_update > 86_400 * 1:     # Update if it has been more than X days since last update
         data = DBHandler.simple_select('''SELECT t.tablename, a.attname, a.attndims,
                                        format_type(a.atttypid, a.atttypmod) as data_type FROM pg_tables t 
                                        JOIN pg_attribute a on a.attrelid::regclass = t.tablename::regclass 
                                        WHERE t.schemaname = 'public' AND a.attnum > 0''',
-                                       target='PROD', user='electric', return_type=pd.DataFrame, index_col='tablename')
+                                       target='PROD', user='electric', return_df=pd.DataFrame, index_col='tablename')
         data.loc[:, 'data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
         data.loc[data.attname == 'gps', 'attndims'] = 1
         data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'double precision': float,
@@ -74,7 +73,7 @@ class DBHandler:
                 'grafana': 'frontend',
                 'analysis': 'north_dakota'
             },
-            'host': 'db' if os.getenv('IN_DOCKER') else 'localhost',
+            'host': 'db' if os.getenv('IN_DOCKER') and 'local' in os.getenv('HOST_IP', 'localhost') else os.getenv('HOST_IP', 'localhost'),
             'port': 5432
         }
     }
@@ -95,7 +94,7 @@ class DBHandler:
                                host=config['host'], port=config['port'])
 
     @classmethod
-    def simple_select(cls, query: str, target='PROD', user='electric', handler=None, return_type=None, **pd_kwargs):
+    def simple_select(cls, query: str, target='PROD', user='electric', handler=None, return_df=False, **pd_kwargs):
         """
         Simple, easy way to get data from database. ONLY USED FOR SELECTING
 
@@ -103,7 +102,7 @@ class DBHandler:
         :param target:      str indicating target database server (according to DB_CONFIG)
         :param user:        str indicating what user to use to sign in to server
         :param handler:     DBHandler handler to use to send requests (made and discarded if not given)
-        :param return_type: type used to determine what type to return data in
+        :param return_df:   bool indicating whether to return a dataframe or not
 
         :return:            list[tuple] | type returns result of query's fetchall as list of tuple rows or as return_type
         """
@@ -116,7 +115,7 @@ class DBHandler:
         if 'SELECT' not in query.upper():
             raise ValueError('Simple select is built specifically for surveying data. Non-"SELECT" queries are prohibited.')
 
-        if return_type is pd.DataFrame:
+        if return_df:
             with handler.connect(target, user) as cnx:
                 return pd.io.sql.read_sql(query, cnx, **pd_kwargs)
 
@@ -155,16 +154,6 @@ class DBHandler:
         # Separate NaNs and log
         nan_vals = [val == 0 or bool(val) for _, val in data.items()]
         nans = {key: val for (key, val), nan in zip(data.items(), nan_vals) if not nan}
-        # out = {}
-        # for (key, val), nan in zip(data.items(), nan_vals):
-        #     print(f'Handling key {key}: {val}')
-        #     if nan:
-        #         if key in ['date', 'gps', 'vcu_flags'] or isinstance(val, (list, bytearray)):
-        #             print('Excluded')
-        #             out[key] = val
-        #         else:
-        #             print('Normal')
-        #             out[key] = table_desc[key][0](val)
         data = {key: val if key in ['date', 'gps', 'vcu_flags'] or isinstance(val, (list, bytearray)) else table_desc[key][0](val)
                      for (key, val), nan in zip(data.items(), nan_vals) if nan}
         if nans:
@@ -213,32 +202,34 @@ class DBHandler:
                             list(flat_gen(data)))
                 return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
-    @classmethod
-    def set_event_time(cls, event_id: int, target='PROD', user='analysis', start=True, returning=None):
+    @staticmethod
+    def set_event_status(event_id: int, status: int, target='PROD', user='analysis', returning=None):
         """
         Targets an event_id and updates the start or end time, with ability to get columns from the affected row.
 
         :param event_id:    int event_id whose start/end time will be updated
+        :param status:      int indicating event status (0 = completed, 1 = running, 2 = created and awaiting start)
         :param target:      str indicating target database server (according to DB_CONFIG)
         :param user:        str indicating what user to use to sign in to server
-        :param start:       bool indicates whether to set start or end time
         :param returning:   str | list column names to return values for after request is executed
 
         :return data:       SQL_VALUE | tuple of values in order of returning
         """
-        now = int(time.time() * 1000)
         with DBHandler().connect(target, user) as cnx:
             with cnx.cursor() as cur:
-                # Set start_/end_time
-                cur.execute(f'''UPDATE event SET {'start' if start else 'end'}_time = {now} 
-                                WHERE event_id = {event_id}
-                                RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
+                now = int(time.time() * 1000)
+                if status in [0, 1]:
+                    # Used by default to set status and time if status is start (1) or end (0)
+                    cur.execute(f'''UPDATE event SET {'start' if status == 1 else 'end'}_time = {now}, status = {status} 
+                                    WHERE event_id = {event_id}
+                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
+                else:
+                    # Used for recording less than 0 status (error) codes
+                    cur.execute(f'''UPDATE event SET status = {status} WHERE event_id = {event_id}
+                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
                 return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     get_table_column_specs(True, True)
-    # d = {'time': 19288, 'frw_acc': [99.0133716054641, 85.64651514227279, 31.696477091949284, 54.52213555162191, 54.2317917847808], 'flw_acc': [1.703249223495884, 13.023149593120708, 73.93942070096864, 95.99276140676814, 0.6369991788708562], 'brw_acc': [7.420226144130082, 13.822294911183286, 83.20297370455478, 10.289661327934308, 23.00130126023412], 'blw_acc': [73.4511903705272, 15.959505406213925, 90.17788150888789, 13.291596300229369, 4.424584938348475], 'body1_acc': [94.11942339562613, 84.47629271886635, 27.52693689142195, 84.60125031829965, 42.760604229844155], 'body1_ang': [65.98816195572515, 27.234856220926616, 52.35924496805096, 15.977586859108984, 51.84177096471721], 'body2_ang': [48.033919542956895, 88.11454221070423, 98.74227227107748, 81.88160455201, 29.3983623402709], 'body2_acc': [30.019065771313713, 91.0846544175037, 89.71441037885677, 26.212993887542403, 48.839396938308255], 'body3_acc': [69.85504273035421, 90.07982624300931, 28.816454241116052, 0.39004040978948273, 75.7664490320731], 'body3_ang': [21.374140726125745, 42.22324264727002, 37.93146289657039, 65.80943127904966, 29.02254001358343], 'accel_pedal_pos': 39.37028376348777, 'brake_pressure': 28.779001462661125, 'motor_rpm': 22081, 'torque_command': 20931, 'gps': [-63.41273639873167, -54.05523687471205]}
-    # DBHandler.insert('dynamics', data=d, returning='gps')
-    # print(DBHandler.insert(table='drive_day', target='PROD', user='electric', data={'date': datetime.date.today().isoformat(), 'power_limit': 75000, 'conditions': 'Testing'}, returning='day_id'))
