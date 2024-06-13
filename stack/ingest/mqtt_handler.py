@@ -106,14 +106,14 @@ class MQTTHandler:
             logging.error(f'\tAttempt made to send data without an event_id cached.')
 
         logging.info(f'\tData received. Inserting to Database now...')
-        data_dict = self.base64_decode(payload, True)
+        data_dict = self.__base64_decode(payload, True)
         data_dict = self.preprocess_payload(data_dict, high_freq)
         db_desc = get_table_column_specs(force=True)
         for table in ['dynamics', 'controls', 'pack', 'diagnostics', 'thermal']:
             DBHandler.insert(table, target='PROD', user='electric',
                              data={col: data_dict[col] for col in db_desc[table] if col in data_dict})
 
-    def __base64_decode(payload: str, high_freq: bool) -> dict:
+    def __base64_decode(self, payload: str, high_freq: bool) -> dict:
         bytes_data = bytearray(base64.b64decode(payload))
 
         with open(f'car_configs/version{bytes_data[0]:02}.json', 'r') as file:
