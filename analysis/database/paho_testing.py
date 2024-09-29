@@ -1,7 +1,6 @@
 import os
 import base64
 import random
-
 import numpy as np
 from numpy.random import default_rng
 import time
@@ -10,6 +9,7 @@ import pickle
 import json
 import requests
 import logging
+from itertools import count
 from tqdm import tqdm
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,13 +27,15 @@ class DataTester:
     """
     Class for testing database with random values in correct data types.
     """
-    def __init__(self, seed=None):
+    def __init__(self, mqtt, seed=None):
         """
         Initializes DataTester class by initiating a numpy.random.Generator.
 
         :param seed:        seed to pass to numpy.random.Generator constructor
         """
         self.rng = default_rng(seed)
+        self.mqtt = mqtt
+        self.packet_enum = count(1)
 
     @staticmethod
     def get_desc(db=False, tables=None, rm_cols=None, **get_specs):
@@ -61,7 +63,7 @@ class DataTester:
         if isinstance(tables, str):
             tables = [tables]
 
-        desc = get_table_column_specs(**get_specs)
+        desc = get_table_column_specs(get_specs.get('force'), get_specs.get('verbose'))
 
         if rm_cols:
             for table in (desc if db else tables):
@@ -124,6 +126,8 @@ class DataTester:
         for col, (dtype, ndims) in table_desc.items():
             if col == 'time':
                 row[col] = time.time()
+            elif col == 'packet_id':
+                row[col] = next(self.packet_enum)
             elif dtype is datetime.datetime:
                 row[col] = datetime.date.today()
             elif dtype is Jsonb:
@@ -154,18 +158,13 @@ class DataTester:
 
         :return: returns 0 for successful runs
         """
-        if 'mqtt_handler' in kwargs:
-            mqtt_handler = kwargs.pop('mqtt_handler')
-        else:
-            mqtt_handler = MQTTHandler()
-            mqtt_handler.connect()
         table_desc = kwargs.pop('table_desc', self.get_desc(tables=[table], rm_cols=rm_cols, **kwargs)[table])
 
         for i in range(num_rows) if kwargs.get('verbose') else tqdm(range(num_rows)):
             row = self.create_row(table_desc)
             if kwargs.get('verbose') and (num_rows < 1000 or not i % (num_rows // 100)):
                 logging.info(f'Publishing payload #{i:>3} to {table}: {row}')
-            mqtt_handler.publish(f'data/{table}', pickle.dumps(row))
+            self.mqtt.publish(f'data/{table}', pickle.dumps(row))
             time.sleep(delay)
         return 0
 
@@ -182,12 +181,11 @@ class DataTester:
 
         :return: returns 0 for successful runs
         """
-        mqtt_handler = kwargs.pop('mqtt_handler', MQTTHandler())
         db_desc = self.get_desc(tables=tables, rm_cols=rm_cols, **kwargs)
 
         with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
             futures = [executor.submit(self.single_table_test, table, num_rows, delay, rm_cols,
-                                       mqtt_handler=mqtt_handler, table_desc=db_desc[table], **kwargs) for table in tables]
+                                       table_desc=db_desc[table], **kwargs) for table in tables]
 
             try:
                 for future in as_completed(futures):
@@ -197,7 +195,7 @@ class DataTester:
 
         return 0
 
-    def send_base64_row(self, ver: int, mqtt: MQTTHandler, high_freq=True):
+    def send_base64_row(self, ver: int, high_freq=True):
         with open(os.getcwd().split('LHR')[0] + '/LHR/stack/ingest/car_configs/version01.json', 'r') as f:
             config = json.load(f)['high' if high_freq else 'low']
         str_to_np = {np_clas.__name__: np_clas for np_clas in getattr(getattr(sys.modules[__name__], 'np'), 'ScalarType')}
@@ -206,17 +204,17 @@ class DataTester:
             dbtest.get_random_data(str_to_np[col_spec['type']], size=(shape := col_spec.get('shape', (1,)))),
             dtype=col_spec['type']) / col_spec.get('multiplier', 1)).flatten().reshape(shape), shape == (1,)).tobytes()
             for col, col_spec in config.items()])
-        mqtt.connect('localhost')
-        mqtt.publish('/h' if high_freq else '/l', payload_str)
+        self.mqtt.publish('/h' if high_freq else '/l', payload_str)
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    mqtt = MQTTHandler('max_test')
+    mqtt = MQTTHandler('max_test', 'telemetry.servebeer.com')
     mqtt.connect('telemetry.servebeer.com')
-    dbtest = DataTester()
-    dbtest.single_table_test('dynamics', 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
-
+    dbtest = DataTester(mqtt)
+        # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
+    dbtest.single_table_test('dynamics', 500, .1)
+    mqtt.disconnect()
         # print(dbtest.get_desc(tables='dynamics'))
     # dbtest.base64_encode(1, mqtt)
     # mqtt.disconnect()
