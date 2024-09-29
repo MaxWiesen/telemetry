@@ -30,26 +30,31 @@ def new_event():
 def create_event():
     inputs = request.form.to_dict()
     inputs['status'] = 2
+    try:
+        last_packet = DBHandler.simple_select('SELECT packet_end FROM event WHERE status = 0 ORDER BY event_id DESC LIMIT 1')[0][0]
+    except IndexError:
+        last_packet = 0
+    inputs['packet_start'] = last_packet + 1
     day_id, event_id = DBHandler.insert(table='event', target='PROD', user='electric', data=inputs, returning=['day_id', 'event_id'])
-    mqtt = MQTTHandler('flask_app')
-    mqtt.connect()
-    mqtt.publish('config/flask', json.dumps({'event_id': event_id}, indent=4))
-    mqtt.disconnect()
+    with MQTTHandler('flask_app') as mqtt:
+        mqtt.publish('/config/flask', json.dumps({'event_id': event_id}, indent=4))
     return render_template('event_tracker.html', host_ip=os.getenv('HOST_IP', 'localhost'), event_id=event_id)
 
 
 @app.route('/set_event_time/', methods=['POST'])
 def set_event_time():
-    DBHandler.set_event_status(**request.json, target='PROD', user='electric', returning='day_id')
     if request.json['status'] == 0:
-        mqtt = MQTTHandler('flask_app')
-        mqtt.connect()
-        mqtt.publish('config/flask', 'end_event')
-        mqtt.disconnect()
-    return render_template('event_tracker.html', host_ip=os.getenv('HOST_IP', 'localhost'), event_id=request.json.get('event_id'))
+        try:
+            request.json['packet_end'] = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0]
+        except IndexError:
+            request.json['packet_end'] = 1
+        with MQTTHandler('flask_app') as mqtt:
+            mqtt.publish('/config/flask', 'end_event')
+    DBHandler.set_event_status(**request.json, target='PROD', user='electric', returning='day_id')
+    return render_template('event_tracker.html', host_ip=os.getenv('HOST_IP', 'localhost'), event_id=request.json['event_id'])
 
 
-@app.route('/tune_data', methods=['GET','POST'])
+@app.route('/tune_data', methods=['GET', 'POST'])
 def tune_data():
     data = request.data
     json_object = json.loads(data)
@@ -57,7 +62,7 @@ def tune_data():
     return render_template('texas_tune.html')
 
 
-@app.route('/turn_data', methods=['GET','POST'])
+@app.route('/turn_data', methods=['GET', 'POST'])
 def turn_data():
     data = request.data
     json_object = json.loads(data)
@@ -65,7 +70,7 @@ def turn_data():
     return render_template('event_tracker.html', host_ip=os.getenv('HOST_IP', 'localhost'))
 
 
-@app.route('/accel_data', methods=['GET','POST'])
+@app.route('/accel_data', methods=['GET', 'POST'])
 def accel_data():
     data = request.data
     json_object = json.loads(data)
