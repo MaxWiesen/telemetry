@@ -1,3 +1,4 @@
+import binascii
 import datetime
 import os
 import logging
@@ -15,10 +16,11 @@ else:
 
 class MQTTHandler:
 
-    def __init__(self, name='python_client'):
+    def __init__(self, name='python_client', host_ip=None):
         '''
         :param name:    str determining name of client to self-report to MQTT broker
         '''
+        self.host_ip = host_ip
         self.client = mqtt_client.Client(name)
         self.client.username = name
         self.client.on_connect = self.on_connect
@@ -45,10 +47,17 @@ class MQTTHandler:
 
         :return:        mqtt_client.Client object
         '''
-        self.client.connect(ip if ip else 'mosquitto' if os.getenv('IN_DOCKER') else 'localhost')
+        self.client.connect(ip if ip else self.host_ip if self.host_ip else 'mosquitto' if os.getenv('IN_DOCKER') else 'localhost')
         return self.client
 
     def disconnect(self):
+        self.client.disconnect()
+
+    def __enter__(self):
+        self.client.connect(self.host_ip if self.host_ip else 'mosquitto' if os.getenv('IN_DOCKER') else 'localhost')
+        return self.client
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self.client.disconnect()
 
     def subscribe(self, topic: str = '#'):
@@ -60,9 +69,9 @@ class MQTTHandler:
 
     def on_message(self, client: mqtt_client.Client, userdata, msg):
         logging.info(f'Received message at topic {msg.topic}: {msg.payload}')
-        if msg.topic == 'config/flask':
+        if msg.topic == '/config/flask':
             self.__flask_handler(msg.payload.decode())
-        elif msg.topic == 'config/car':
+        elif msg.topic == '/config/car':
             os.environ['RTC_START'] = str(datetime.datetime.strptime(msg.payload.decode(), "%Y-%m-%dT%H:%M:%S.%f").timestamp() * 1000)
         elif (freq := msg.topic.rsplit('/')[-1]) in ['h', 'l']:
             self.__b64_ingest(msg.payload, freq)
@@ -98,8 +107,9 @@ class MQTTHandler:
             logging.info('\tPickle Payload received, likely coming from debug source...')
         except pickle.UnpicklingError:
             data_dict = json.loads(payload.decode().replace("'", '"'))
-        data_dict['event_id'] = os.environ['EVENT_ID']
-        DBHandler.insert(table, target='PROD', user='electric', data=data_dict)
+        if table not in ['dynamics', 'pack', 'controls', 'diagnostics', 'thermal']:
+            data_dict['event_id'] = os.environ['EVENT_ID']
+        DBHandler.insert(table, target='LOCAL', user='electric', data=data_dict)
 
     def __b64_ingest(self, payload, high_freq: bool):
         if not os.getenv('EVENT_ID'):
@@ -110,7 +120,7 @@ class MQTTHandler:
         data_dict = self.preprocess_payload(data_dict, high_freq)
         db_desc = get_table_column_specs(force=True)
         for table in ['dynamics', 'controls', 'pack', 'diagnostics', 'thermal']:
-            DBHandler.insert(table, target='PROD', user='electric',
+            DBHandler.insert(table, target='LOCAL', user='electric',
                              data={col: data_dict[col] for col in db_desc[table] if col in data_dict})
 
     def __base64_decode(self, payload: str, high_freq: bool) -> dict:
@@ -138,7 +148,6 @@ class MQTTHandler:
             del payload['since_rtc']
         except KeyError:
             raise KeyError('RTC Start was not set.')
-        payload['event_id'] = os.environ['EVENT_ID']
         if high_freq:
             payload['gps'] = tuple(val / 60 for val in payload['gps'])
             payload['vcu_flags_json'] = {
@@ -169,36 +178,30 @@ class MQTTHandler:
             del payload['imu_gyro']
 
             # Wheel Speed
-            payload['flw_speed'] = payload['wheel_speed'][:3]
-            payload['frw_speed'] = payload['wheel_speed'][3:6]
-            payload['blw_speed'] = payload['wheel_speed'][6:9]
-            payload['brw_speed'] = payload['wheel_speed'][9:12]
+            payload['flw_speed'] = payload['wheel_speed'][0]
+            payload['frw_speed'] = payload['wheel_speed'][1]
+            payload['blw_speed'] = payload['wheel_speed'][2]
+            payload['brw_speed'] = payload['wheel_speed'][3]
             del payload['wheel_speed']
 
         return payload
-
-    # TODO: Implement with enter for auto disconnect
-    # def __enter__(self):
-    #     self.client.connect()
-    #     return self.client
-    #
-    # def __exit__(self, exc_type, exc_val, exc_tb):
-    #     self.client.disconnect()
 
 
 def main():
     '''
     This is the runner script for the subscribe-side MQTT script which uploads data to the database
     '''
-    # mqtt = MQTTHandler('paho_tester')
-    # mqtt.connect('ec2-52-14-184-219.us-east-2.compute.amazonaws.com')
-    # mqtt.publish('config/flask', json.dumps({'event_id': 'idk'}, indent=4))
-
     mqtt = MQTTHandler('ingest')
     mqtt.connect('mosquitto')
     mqtt.subscribe(topic='#')
 
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     main()
+
+    # mqtt = MQTTHandler('Test')
+    # os.environ['RTC_START'] = '0'
+    # os.environ['EVENT_ID'] = '0'
+    # data = mqtt.base64_decode(b'AZMiAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAFNEAABUAAAA89gEAABmEC8oF/QHjAbkBlgFvAwQmgQG3wvz8PgBmif4Iev/K2gAAAAAAAMr+8/5LJ2HXT/1NAgAAAAAAAIX+rx3rGLcB1+MbGwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAA+I18TQMpCCb5QbRjBAAAAAAAAAAA=', True)
+    # print(data)
+    # print(MQTTHandler.preprocess_payload(data, True))
