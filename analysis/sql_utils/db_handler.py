@@ -4,24 +4,24 @@ import time
 import logging
 import datetime
 import os
-from pathlib import Path
 import psycopg
 from psycopg.types.json import Jsonb
 
 
-def get_table_column_specs(force=False, verbose=False):
+def get_table_column_specs(force=False, verbose=False, target='PROD'):
     """
     Gets description of DB layout using either recent pkl file or request to database. Returns description in form of
     dict as follows: {'power': {'cooling_flow': (<class 'float'>, 0), col2: (type2, num_dimension), ...}, table2: {...}}
 
     :param force:           bool determines whether to force refresh of cached description (pkl file)
     :param verbose:         bool used to pretty print most updated DB layout, only works if debugging level includes info
+    :param target:          str  One of DBHandler.DB_CONFIG known servers to pull from
 
     :return db_description: dict represents current layout of DB--see function description for more explanation
     """
     desc_path = '/ingest/DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('/analysis', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
 
-    if not os.path.isfile(desc_path):
+    if not force and not os.path.isfile(desc_path):
         def find_db_description():
             root_folder = '/analysis' if 'analysis' in os.getcwd() else '/LHR'
             for root, dirs, files in os.walk(f'{os.getcwd().rsplit(root_folder, 1)[0]}/{root_folder}'):
@@ -29,8 +29,9 @@ def get_table_column_specs(force=False, verbose=False):
                     if name == 'DB_description.pkl':
                         return os.path.abspath(os.path.join(root, name))
             return None
-        desc_path = find_db_description()
-        force = not bool(desc_path)
+        exist_path = find_db_description()
+        force = not bool(exist_path)
+        desc_path = exist_path or desc_path
 
     if not force:
         try:
@@ -44,7 +45,7 @@ def get_table_column_specs(force=False, verbose=False):
                                        format_type(a.atttypid, a.atttypmod) as data_type FROM pg_tables t 
                                        JOIN pg_attribute a on a.attrelid::regclass = t.tablename::regclass 
                                        WHERE t.schemaname = 'public' AND a.attnum > 0''',
-                                       target='PROD', user='electric', return_df=pd.DataFrame, index_col='tablename')
+                                       target=target, user='electric', return_df=pd.DataFrame, index_col='tablename')
         data.loc[:, 'data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
         data.loc[data.attname == 'gps', 'attndims'] = 1
         data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'double precision': float,
@@ -66,7 +67,7 @@ class DBHandler:
     Class for interfacing with the database
     """
     DB_CONFIG = {
-        'PROD': {
+        'LOCAL': {
             'dbname': 'telemetry',
             'users': {
                 'electric': '2fast2quick',
@@ -74,6 +75,16 @@ class DBHandler:
                 'analysis': 'north_dakota'
             },
             'host': 'db' if os.getenv('IN_DOCKER') and 'local' in os.getenv('HOST_IP', 'localhost') else os.getenv('HOST_IP', 'localhost'),
+            'port': 5432
+        },
+        'PROD': {
+            'dbname': 'telemetry',
+            'users': {
+                'electric': '2fast2quick',
+                'grafana': 'frontend',
+                'analysis': 'north_dakota'
+            },
+            'host': 'telemetry.servebeer.com',
             'port': 5432
         }
     }
@@ -203,7 +214,7 @@ class DBHandler:
                 return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
     @staticmethod
-    def set_event_status(event_id: int, status: int, target='PROD', user='analysis', returning=None):
+    def set_event_status(event_id: int, status: int, target='PROD', user='analysis', packet_end=None, returning=None):
         """
         Targets an event_id and updates the start or end time, with ability to get columns from the affected row.
 
@@ -211,6 +222,7 @@ class DBHandler:
         :param status:      int indicating event status (0 = completed, 1 = running, 2 = created and awaiting start)
         :param target:      str indicating target database server (according to DB_CONFIG)
         :param user:        str indicating what user to use to sign in to server
+        :param packet_end:  int indicating last packet contained in event
         :param returning:   str | list column names to return values for after request is executed
 
         :return data:       SQL_VALUE | tuple of values in order of returning
@@ -218,9 +230,16 @@ class DBHandler:
         with DBHandler().connect(target, user) as cnx:
             with cnx.cursor() as cur:
                 now = int(time.time() * 1000)
-                if status in [0, 1]:
-                    # Used by default to set status and time if status is start (1) or end (0)
-                    cur.execute(f'''UPDATE event SET {'start' if status == 1 else 'end'}_time = {now}, status = {status} 
+                if status == 1:
+                    # Set event status to running
+                    cur.execute(f'''UPDATE event SET start_time = {now}, status = 1
+                                    WHERE event_id = {event_id}
+                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
+                elif status == 0:
+                    # Signal end of event and update final packet
+                    if packet_end is None:
+                        raise ValueError('Packet end argument was none while ending event.')
+                    cur.execute(f'''UPDATE event SET end_time = {now}, status = 0, packet_end = {packet_end}
                                     WHERE event_id = {event_id}
                                     RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
                 else:
@@ -232,4 +251,4 @@ class DBHandler:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    get_table_column_specs(True, True)
+    get_table_column_specs(True, True, 'PROD')
