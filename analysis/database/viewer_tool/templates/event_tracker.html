@@ -5,6 +5,12 @@
     <script src="{{ url_for('static', filename='js/stopWatch.js') }}"></script>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
 {% endblock %}
 
 {% block body %}
@@ -69,15 +75,35 @@
             saveButton.setAttribute("disabled", true)
 
             var watch = new Stopwatch(timer, tab);
+            let event_id = {{ event_id }}
+            let host_ip
+            if ('{{ host_ip }}'.indexOf('local') === -1) {
+                host_ip = 'https://{{ host_ip }}'
+            } else {
+                host_ip = 'http://{{ host_ip }}'
+            }
 
             startButton.addEventListener('click', function() {
                 saveButton.setAttribute("disabled", true)
                 watch.start();
+                let xhr = new XMLHttpRequest()
+                xhr.open('POST', host_ip + ':5000/set_event_time', true)
+                xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
+                xhr.send(JSON.stringify({
+                    event_id: event_id,
+                    status: 1}))
             })
 
             stopButton.addEventListener('click', function() {
                 saveButton.removeAttribute("disabled")
                 watch.stop();
+                let xhr = new XMLHttpRequest()
+
+                xhr.open('POST', host_ip + ':5000/set_event_time', true)
+                xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
+                xhr.send(JSON.stringify({
+                    event_id: event_id,
+                    status: 0}))
             });
 
             turnButton.addEventListener('click', function() {
@@ -89,10 +115,33 @@
             });
 
             saveButton.addEventListener('click', function() {
-                watch.tableToJSON(document.getElementById('turn-table'), 'http://127.0.0.1:5001/turn_data');
-                watch.tableToJSON(document.getElementById('accel-table'), 'http://127.0.0.1:5001/accel_data');
+                watch.tableToJSON(document.getElementById('turn-table'), 'http://localhost:5000/turn_data');
+                watch.tableToJSON(document.getElementById('accel-table'), 'http://localhost:5000/accel_data');
             });
         </script>
     </div>
+    <button onClick="getLocation()">Add Marker</button>
+    <div id="map" style="width: 600px; height: 400px; position: relative; outline:none;"
+         class="leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom"
+         tabindex="0"></div>
+    <style>
+        .loader {
+          border: 16px solid #f3f3f3; /* Light grey */
+          border-top: 16px solid #3498db; /* Blue */
+          border-radius: 50%;
+          width: 120px;
+          height: 120px;
+          animation: spin 10s linear infinite;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+    </style>
+    <div class="loader"></div>
+    <p id="result">Nothing returned yet.</p>
+
+    <script src="{{ url_for('static', filename='js/locator.js') }}"></script>
 </div>
 {% endblock %}

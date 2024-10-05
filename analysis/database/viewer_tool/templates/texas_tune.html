@@ -22,7 +22,6 @@
     <a href="#STEERING" onclick="appear('#STEERING')" style="text-align: center;">Steering</a>
 
 
-
     <div style="padding: 10%; position:absolute; bottom:0px;">
         <button type="submit" id="savePage" onclick="savePage('curr')" class="btn btn-primary btn-lg btn-block">Save
             Page</button>
@@ -222,7 +221,7 @@
     }
 
     function savePage(p) {
-        if(p == 'curr'){
+        if (p === 'curr') {
             p = currentPage
         }
         
@@ -242,7 +241,7 @@
                 l[i] = l[i].substr(l[i].indexOf("id=\"") + 4)
                 v[i] = document.getElementById(l[i]).value
 
-            } if (l[i].includes("checkbox")) {
+            } else if (l[i].includes("checkbox")) {
                 console.log("check");
                 l[i] = l[i].substr(l[i].indexOf("id=\"") + 4)
                 v[i] = document.getElementById(l[i]).checked
@@ -260,8 +259,8 @@
 
             let data = [];
             for (let i = 1; i < table.rows.length; i++) {
-                var tableRow = table.rows[i];
-                var rowData = [];
+                let tableRow = table.rows[i];
+                let rowData = [];
                 for (let j = 0; j < tableRow.cells.length; j++) {
                     rowData.push(tableRow.cells[j].innerHTML);
                 }
@@ -270,11 +269,10 @@
             payload[l[k]] = data
         }
     }
-        console.log(payload);
 
         let xhr = new XMLHttpRequest();
-        xhr.open('POST', 'http://127.0.0.1:5001/tune_data');
-        xhr.setRequestHeader('Content-Type', 'application/json', 'charset=UTF-8');
+        xhr.open('POST', 'https://telemetry.servebeer.com:5000/tune_data');
+        xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
         xhr.send(JSON.stringify(payload));
 
     }

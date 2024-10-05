@@ -37,7 +37,6 @@ CREATE TABLE public.drive_day (
 	conditions          text,
 	CONSTRAINT drive_day_pk PRIMARY KEY (day_id)
 );
-ALTER TABLE public.drive_day OWNER TO electric;
 
 -- LUT for Driver IDs
 CREATE TABLE public.lut_driver (
@@ -93,15 +92,16 @@ INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'3', E'Skidpad'
 INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'4', E'Straightline Acceleration');
 INSERT INTO public.lut_event_type (type_id, event_type) VALUES (E'5', E'Straightline Breaking');
 
-
 -- Event Table
 CREATE TABLE public.event (
 	event_id            smallserial NOT NULL,
 	day_id              smallint    NOT NULL,
+    status              smallint,
 	creation_time       bigint      NOT NULL,
 	start_time          bigint,
 	end_time            bigint,
-    status              smallint,
+    packet_start        bigint,
+    packet_end          bigint,
 	car_id              smallint    NOT NULL,
 	driver_id           smallint    NOT NULL,
 	location_id         smallint    NOT NULL,
@@ -131,10 +131,16 @@ CREATE TABLE public.event (
     CONSTRAINT fk_event_type FOREIGN KEY(event_type) REFERENCES lut_event_type(type_id)
 );
 
+-- Packet Table
+CREATE TABLE public.packet (
+    packet_id           bigint   NOT NULL,
+    "time"              bigint   NOT NULL,
+    CONSTRAINT packet_pk PRIMARY KEY (packet_id)
+);
+
 -- Dynamics table
 CREATE TABLE public.dynamics (
-    event_id            smallint NOT NULL,
-    "time"              bigint   NOT NULL,
+    packet_id           bigint   NOT NULL,
     torque_request      real,
     vcu_position        real[],
     vcu_velocity        real[],
@@ -160,14 +166,12 @@ CREATE TABLE public.dynamics (
     inverter_c          real,
     inverter_rpm        smallint,
     inverter_torque     real,
-    CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
+    CONSTRAINT fk_packet_id FOREIGN KEY(packet_id) REFERENCES packet(packet_id)
 );
-
 
 -- Controls table
 CREATE TABLE public.controls (
-    event_id            smallint NOT NULL,
-    "time"              bigint   NOT NULL,
+    packet_id           bigint   NOT NULL,
     vcu_flags           bytea,
     vcu_flags_json      jsonb,
     apps1_v             real,
@@ -177,13 +181,12 @@ CREATE TABLE public.controls (
     sus1_v              real,
     sus2_v              real,
     steer_v             real,
-    CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
+    CONSTRAINT fk_packet_id FOREIGN KEY(packet_id) REFERENCES packet(packet_id)
 );
 
 -- Pack table
 CREATE TABLE public.pack (
-    event_id            smallint NOT NULL,
-    "time"              bigint   NOT NULL,
+    packet_id           bigint   NOT NULL,
     hv_pack_v           real,
     hv_tractive_v       real,
     hv_c                real,
@@ -192,14 +195,13 @@ CREATE TABLE public.pack (
     contactor_state     smallint,
     avg_cell_v          real,
     avg_cell_temp       smallint,
-    CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
+    CONSTRAINT fk_packet_id FOREIGN KEY(packet_id) REFERENCES packet(packet_id)
 );
 
 
 -- Diagnostics table
 CREATE TABLE public.diagnostics (
-    event_id                smallint NOT NULL,
-    "time"                  bigint   NOT NULL,
+    packet_id               bigint   NOT NULL,
     current_errors          bytea,
     current_errors_json     jsonb,
     latching_faults         bytea,
@@ -207,15 +209,13 @@ CREATE TABLE public.diagnostics (
     cells_v                 real[],
     hv_charge_state         real,
     lv_charge_state         real,
-    CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
+    CONSTRAINT fk_packet_id FOREIGN KEY(packet_id) REFERENCES packet(packet_id)
 );
-
 
 -- Thermal table
 CREATE TABLE public.thermal
 (
-    event_id            smallint NOT NULL,
-    "time"              bigint   NOT NULL,
+    packet_id           bigint   NOT NULL,
     cells_temp          smallint[],
     ambient_temp        smallint,
     inverter_temp       smallint,
@@ -228,17 +228,15 @@ CREATE TABLE public.thermal
     batt_fan_set        smallint,
     batt_fan_rpm        smallint,
     flow_rate           smallint,
-    CONSTRAINT fk_event_id FOREIGN KEY (event_id) REFERENCES event (event_id)
+    CONSTRAINT fk_packet_id FOREIGN KEY(packet_id) REFERENCES packet(packet_id)
 );
-ALTER TABLE public.thermal OWNER to electric;
-
 
 -- Classifier table
 CREATE TABLE public.classifier (
-    event_id            smallint    NOT NULL,
+    event_id            bigint      NOT NULL,
     type                text        NOT NULL,
     start_time          bigint      NOT NULL,
     end_time            bigint,
     notes               text,
-    CONSTRAINT fk_event_id FOREIGN KEY (event_id) REFERENCES event (event_id)
+    CONSTRAINT fk_event_id FOREIGN KEY(event_id) REFERENCES event(event_id)
 );
