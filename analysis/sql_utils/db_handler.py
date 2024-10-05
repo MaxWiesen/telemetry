@@ -19,25 +19,23 @@ def get_table_column_specs(force=False, verbose=False, target='PROD'):
 
     :return db_description: dict represents current layout of DB--see function description for more explanation
     """
-    desc_path = '/ingest/DB_description.pkl' if os.getenv('IN_DOCKER') else os.getcwd().rsplit('/analysis', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
+    def find_db_description():
+        root_folder = '/analysis' if 'analysis' in os.getcwd() else '/LHR'
+        for root, dirs, files in os.walk(f'{os.getcwd().rsplit(root_folder, 1)[0]}/{root_folder}'):
+            for fol in dirs:
+                if fol == 'DB_description.pkl':
+                    os.rmdir(f'{root}/{fol}')
+            for name in files:
+                if name == 'DB_description.pkl':
+                    return os.path.abspath(os.path.join(root, name))
+        return None
 
-    if not force and not os.path.isfile(desc_path):
-        def find_db_description():
-            root_folder = '/analysis' if 'analysis' in os.getcwd() else '/LHR'
-            for root, dirs, files in os.walk(f'{os.getcwd().rsplit(root_folder, 1)[0]}/{root_folder}'):
-                for name in files:
-                    if name == 'DB_description.pkl':
-                        return os.path.abspath(os.path.join(root, name))
-            return None
-        exist_path = find_db_description()
-        force = not bool(exist_path)
-        desc_path = exist_path or desc_path
+    desc_path = '/ingest/DB_description.pkl' if os.getenv('IN_DOCKER') else find_db_description()
+    force = not bool(desc_path)
+    desc_path = desc_path or os.getcwd().rsplit('/analysis', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
 
     if not force:
-        try:
-            last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
-        except IsADirectoryError:
-            force = True
+        last_update, table_column_specs = pickle.load(open(desc_path, 'rb'))
 
     now = time.time()
     if force or now - last_update > 86_400 * 1:     # Update if it has been more than X days since last update
@@ -251,4 +249,4 @@ class DBHandler:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    get_table_column_specs(True, True, 'PROD')
+    get_table_column_specs(False, True, 'LOCAL')
