@@ -11,7 +11,7 @@ services:
 
   ingest:
     build:
-      context: ingest
+      context: .
       dockerfile: Dockerfile
     image: telemetry_backend
     container_name: ingest
@@ -23,27 +23,8 @@ services:
       - mosquitto
       - db
     volumes:
-      - ../analysis/sql_utils/db_handler.py:/ingest/db_handler.py
-      - ../analysis/sql_utils/DB_description.pkl:/ingest/DB_description.pkl
-
-#  db_processor:
-#    build:
-#      context: processors
-#      dockerfile: Dockerfile
-#    image: telemetry_processors
-#    container_name: db_processor
-#    restart: unless-stopped
-#    environment:
-#      PYTHONUNBUFFERED: 1
-#      IN_DOCKER: 1
-#      HOST_IP: 'localhost'
-#    depends_on:
-#      - mosquitto
-#      - db
-#      - ingest
-#    volumes:
-#      - ../analysis/sql_utils/db_handler.py:/processors/db_handler.py
-#      - ../analysis/sql_utils/DB_description.pkl:/processors/DB_description.pkl
+      - ../../analysis/sql_utils/db_handler.py:/ingest/db_handler.py
+      - ../../analysis/sql_utils/DB_description.pkl:/ingest/DB_description.pkl
 
   db:
     image: postgres
@@ -67,11 +48,12 @@ services:
     container_name: grafana
     restart: unless-stopped
     environment:
-      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: '49ms'    # Sets min refresh rate of grafana dashboard
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: '100ms'     # Sets min refresh rate of grafana dashboard
     volumes:
       - grafana_storage:/var/lib/grafana
     ports:
       - "3000:3000"
+    cpus: 0.5               # Caps Grafana CPU utilization
 
 volumes:
   grafana_storage:

@@ -1,3 +1,6 @@
+import os
+import base64
+import random
 import numpy as np
 from numpy.random import default_rng
 import time
@@ -6,14 +9,15 @@ import pickle
 import json
 import requests
 import logging
+from itertools import count
 from tqdm import tqdm
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from pathlib import Path
 from psycopg.types.json import Jsonb
-
-from stack.ingest.mqtt_handler import mosquitto_connect
+from typing import Union, Tuple
+from stack.ingest.mqtt_handler import MQTTHandler
 from analysis.sql_utils.db_handler import get_table_column_specs
 
 sys.path.append(str(Path(__file__).parents[2]))
@@ -23,60 +27,15 @@ class DataTester:
     """
     Class for testing database with random values in correct data types.
     """
-    def __init__(self, seed=None):
+    def __init__(self, mqtt, seed=None):
         """
         Initializes DataTester class by initiating a numpy.random.Generator.
 
         :param seed:        seed to pass to numpy.random.Generator constructor
         """
         self.rng = default_rng(seed)
-
-    def get_random_data(self, dtype, size=1, as_scalar=False, **kwargs):
-        """
-        Creates and returns array of (pseudo-)randomly generated number based on given data type.
-
-        :param dtype:       class indicating desired output data type
-        :param size:        int indicating number of values desired
-        :param as_scalar:   bool if true and size is 1, return value as scalar instead of list
-        :param kwargs:      min/low: int indicating minimum value for rng
-                            max/high: int indicating maximum value for rng
-                            endpoint: bool indicating whether to include high/max value (note: only works for floats)
-                            length: int indicating number of sentences (note: only works for strings)
-        :return:            array of randomly generated numbers
-        """
-
-        # Checks if low/min was passed by name, but not high/max which would cause low/min to be treated as high/max
-        if ('low' in kwargs or 'min' in kwargs) and 'high' not in kwargs and 'max' not in kwargs:
-            raise ValueError('min/low number specified, but max/high number was not.')
-
-        # Checks if as_scalar matches size. If size > 1, a scalar cannot contain the values
-        if as_scalar and size != 1:
-            raise ValueError('as_scalar was set to true, but more than 1 value was expected to be returned.')
-
-        if dtype is datetime.date:
-            res = [datetime.date.today()]
-            size = 1
-        # If point, return a tuple of longitude and latitude
-        elif dtype == 'point':
-            res = [float(self.get_random_data(float, 1, as_scalar=True, low=-180, high=180)),
-                   float(self.get_random_data(float, 1, as_scalar=True, low=-90, high=90))]
-        # If bool or int, use default_rng.integers method with some argument manipulation
-        elif dtype is bool or np.issubdtype(dtype, np.integer):
-            res = [int(val) for val in self.rng.integers(0, 2 if dtype is bool else 32767, size=size, dtype=int)]
-        # If float, use default_rng.random method with [0, 1) --> [low/min, high/max) transformation algorithm
-        elif np.issubdtype(dtype, np.floating):
-            # Algorithm used is (big - small) * random(0-1) + small
-            res = [float(val) for val in (kwargs.get('high', kwargs.get('max', 1)) - kwargs.get('low', kwargs.get('min', 0))) * \
-                   self.rng.random(size, dtype) + kwargs.get('low', kwargs.get('min', 0))]
-        # If str, bacon
-        elif dtype is str:
-            res = [requests.get('https://baconipsum.com/api/',
-                                params={'type': 'meat-and-filler', 'sentences': kwargs.get('length', 10),
-                                        'start-with-lorem': 1}).text[2:-2] for _ in range(size)]
-        else:
-            raise NotImplementedError(f'Data type {dtype} not implemented yet.')
-
-        return res[0] if size == 1 else list(res)
+        self.mqtt = mqtt
+        self.packet_enum = count(1)
 
     @staticmethod
     def get_desc(db=False, tables=None, rm_cols=None, **get_specs):
@@ -104,7 +63,7 @@ class DataTester:
         if isinstance(tables, str):
             tables = [tables]
 
-        desc = get_table_column_specs(**get_specs)
+        desc = get_table_column_specs(get_specs.get('force'), get_specs.get('verbose'))
 
         if rm_cols:
             for table in (desc if db else tables):
@@ -115,6 +74,46 @@ class DataTester:
             return desc
         return {table: desc[table] for table in tables}
 
+    def get_random_data(self, dtype: type, size: Union[int, Tuple[int, int]], as_scalar=False, **kwargs):
+        """
+        Creates and returns array of (pseudo-)randomly generated number based on given data type.
+
+        :param dtype:       class indicating desired output data type
+        :param size:        int indicating number of values desired
+        :param as_scalar:   bool if true and size is 1, return value as scalar instead of list
+        :param kwargs:      min/low: int indicating minimum value for rng
+                            max/high: int indicating maximum value for rng
+                            endpoint: bool indicating whether to include high/max value (note: only works for floats)
+                            length: int indicating number of sentences (note: only works for strings)
+        :return:            array of randomly generated numbers
+        """
+
+        # Checks if low/min was passed by name, but not high/max which would cause low/min to be treated as high/max
+        if ('low' in kwargs or 'min' in kwargs) and 'high' not in kwargs and 'max' not in kwargs:
+            raise ValueError('min/low number specified, but max/high number was not.')
+
+        # Checks if as_scalar matches size. If size > 1, a scalar cannot contain the values
+        if as_scalar and size != 1:
+            raise ValueError('as_scalar was set to true, but more than 1 value was expected to be returned.')
+
+        # If bool or int, use default_rng.integers method with some argument manipulation
+        if dtype is bool or np.issubdtype(dtype, np.integer):
+            res = self.rng.integers(0, 2 if dtype is bool else 32767, size=size, dtype=int).tolist()
+        # If float, use default_rng.random method with [0, 1) --> [low/min, high/max) transformation algorithm
+        elif np.issubdtype(dtype, np.floating):
+            # Algorithm used is (big - small) * random(0-1) + small
+            res = ((kwargs.get('high', kwargs.get('max', 1)) - kwargs.get('low', kwargs.get('min', 0))) * \
+                   self.rng.random(size, dtype) + kwargs.get('low', kwargs.get('min', 0))).tolist()
+        # If str, bacon
+        elif dtype is str:
+            res = [requests.get('https://baconipsum.com/api/',
+                                params={'type': 'meat-and-filler', 'sentences': kwargs.get('length', 10),
+                                        'start-with-lorem': 1}).text[2:-2] for _ in range(size)]
+        else:
+            raise NotImplementedError(f'Data type {dtype} not implemented yet.')
+
+        return res[0] if as_scalar else list(res)
+
     def create_row(self, table_desc: dict):
         """
         This function is used to create a row of test data.
@@ -124,15 +123,26 @@ class DataTester:
         :return: a row of data in dict {col_name: random_data, col2_name: ...} format
         """
         row = {}
-        for col, (dtype, is_list) in table_desc.items():
+        for col, (dtype, ndims) in table_desc.items():
             if col == 'time':
                 row[col] = time.time()
-            elif dtype is float:
-                row[col] = self.get_random_data(dtype, min=0, max=100, size=5 if is_list else 1)
+            elif col == 'packet_id':
+                row[col] = next(self.packet_enum)
+            elif dtype is datetime.datetime:
+                row[col] = datetime.date.today()
             elif dtype is Jsonb:
                 row[col] = Jsonb({'fake_jsonb_data': self.get_random_data(int, 3)})
+            elif dtype == 'point':
+                row[col] = random.choice([(30.289464, -97.735303), (30.389670, -97.728152)])
             else:
-                row[col] = self.get_random_data(dtype, size=5 if is_list or col == 'gps' else 1)
+                if ndims == 0:
+                    row[col] = self.get_random_data(dtype, size=1, as_scalar=True)
+                elif ndims == 1:
+                    row[col] = self.get_random_data(dtype, size=3)
+                elif ndims == 2:
+                    row[col] = self.get_random_data(dtype, size=(3, 3))
+                else:
+                    raise ValueError(f'Invalid number of dimensions: {ndims}')
         return row
 
     def single_table_test(self, table: str, num_rows: int, delay: float, rm_cols=None, **kwargs):
@@ -148,14 +158,13 @@ class DataTester:
 
         :return: returns 0 for successful runs
         """
-        client = kwargs.pop('client', mosquitto_connect('paho_tester'))
         table_desc = kwargs.pop('table_desc', self.get_desc(tables=[table], rm_cols=rm_cols, **kwargs)[table])
 
         for i in range(num_rows) if kwargs.get('verbose') else tqdm(range(num_rows)):
             row = self.create_row(table_desc)
             if kwargs.get('verbose') and (num_rows < 1000 or not i % (num_rows // 100)):
                 logging.info(f'Publishing payload #{i:>3} to {table}: {row}')
-            client.publish(f'data/{table}', pickle.dumps(row))
+            self.mqtt.publish(f'data/{table}', pickle.dumps(row))
             time.sleep(delay)
         return 0
 
@@ -172,12 +181,11 @@ class DataTester:
 
         :return: returns 0 for successful runs
         """
-        client = kwargs.pop('client', mosquitto_connect('paho_tester'))
         db_desc = self.get_desc(tables=tables, rm_cols=rm_cols, **kwargs)
 
         with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
             futures = [executor.submit(self.single_table_test, table, num_rows, delay, rm_cols,
-                                       client=client, table_desc=db_desc[table], **kwargs) for table in tables]
+                                       table_desc=db_desc[table], **kwargs) for table in tables]
 
             try:
                 for future in as_completed(futures):
@@ -187,11 +195,30 @@ class DataTester:
 
         return 0
 
+    def send_base64_row(self, ver: int, high_freq=True):
+        with open(os.getcwd().split('LHR')[0] + '/LHR/stack/ingest/car_configs/version01.json', 'r') as f:
+            config = json.load(f)['high' if high_freq else 'low']
+        str_to_np = {np_clas.__name__: np_clas for np_clas in getattr(getattr(sys.modules[__name__], 'np'), 'ScalarType')}
+        scalar_or_list = lambda val, scalar: val.tolist()[0] if scalar else val.tolist()
+        payload_str = ver.to_bytes(1, 'big') + b''.join([scalar_or_list((np.array(
+            dbtest.get_random_data(str_to_np[col_spec['type']], size=(shape := col_spec.get('shape', (1,)))),
+            dtype=col_spec['type']) / col_spec.get('multiplier', 1)).flatten().reshape(shape), shape == (1,)).tobytes()
+            for col, col_spec in config.items()])
+        self.mqtt.publish('/h' if high_freq else '/l', payload_str)
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    client = mosquitto_connect('max_test')
-    dbtest = DataTester()
-    dbtest.single_table_test('dynamics', 1000, .1, ['event_id'], client=client)
-    client.disconnect()
+    mqtt = MQTTHandler('max_test', 'telemetry.servebeer.com')
+    mqtt.connect('telemetry.servebeer.com')
+    dbtest = DataTester(mqtt)
+        # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
+    dbtest.single_table_test('dynamics', 500, .1)
+    mqtt.disconnect()
+        # print(dbtest.get_desc(tables='dynamics'))
+    # dbtest.base64_encode(1, mqtt)
+    # mqtt.disconnect()
+    # print(dbtest.create_row(dbtest.get_desc(tables='dynamics', rm_cols=['event_id'])['dynamics']))
+    # dbtest.single_table_test('dynamics', 500, .1, ['event_id'], client=client)
+    # client.disconnect()
     # dt.concurrent_tables_test(['dynamics', 'electronics'], 5000, .01, ['event_id'])
