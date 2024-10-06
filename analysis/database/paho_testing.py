@@ -16,6 +16,9 @@ from multiprocessing import cpu_count
 from pathlib import Path
 from psycopg.types.json import Jsonb
 from typing import Union, Tuple
+
+sys.path.append(str(Path(__file__).parents[2]))
+
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 from analysis.sql_utils.db_handler import get_table_column_specs
 
@@ -207,6 +210,8 @@ class DataTester:
     def add_data_for_gps(self, file: str, delay: float):
         dict = pd.read_csv(file).to_dict(orient='index')
         
+        print("DICT: ", dict)
+        
         for index, row_dict in dict.items():
             packet_row = {}
             packet_row["packet_id"] = row_dict["packet_id"]
@@ -216,8 +221,11 @@ class DataTester:
             dynamics_row["packet_id"] = row_dict["packet_id"]
             dynamics_row["gps"] = row_dict["gps"]
             
-            self.mqtt.publish(f'data/packet', pickle.dumps(packet_row))
+            print("PACKET ROW: ", packet_row)
+            print("DYNAMICS ROW: ", dynamics_row)
             
+            self.mqtt.publish(f'data/packet', pickle.dumps(packet_row))
+            time.sleep(delay)
             self.mqtt.publish(f'data/dynamics', pickle.dumps(dynamics_row))
             time.sleep(delay)
         return 0
@@ -225,9 +233,10 @@ class DataTester:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    mqtt = MQTTHandler('max_test', MQTTTarget.LOCAL)
+    mqtt = MQTTHandler('terence_test', MQTTTarget.LOCAL)
     mqtt.connect()
     dbtest = DataTester(mqtt)
     # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
-    dbtest.single_table_test('packet', 500, .1)
+    # dbtest.single_table_test('packet', 500, .1)
+    dbtest.add_data_for_gps("gps_test_data.csv", .5)
     mqtt.disconnect()

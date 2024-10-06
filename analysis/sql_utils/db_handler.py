@@ -39,7 +39,7 @@ class DBTarget:
         return {target: DBTarget[target]['host'] for target in list(filter(lambda x: '__' not in x, dir(DBTarget)))}[target]
 
 
-def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL):
+def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, handler=None):
     """
     Gets description of DB layout using either recent pkl file or request to database. Returns description in form of
     dict as follows: {'power': {'cooling_flow': (<class 'float'>, 0), col2: (type2, num_dimension), ...}, table2: {...}}
@@ -74,7 +74,7 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL):
                                        format_type(a.atttypid, a.atttypmod) as data_type FROM pg_tables t 
                                        JOIN pg_attribute a on a.attrelid::regclass = t.tablename::regclass 
                                        WHERE t.schemaname = 'public' AND a.attnum > 0''',
-                                       target=target, user='electric', return_df=pd.DataFrame, index_col='tablename')
+                                       handler=handler, target=target, user='electric', return_df=pd.DataFrame, index_col='tablename')
         data.loc[:, 'data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
         data.loc[data.attname == 'gps', 'attndims'] = 1
         data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'double precision': float,
@@ -107,6 +107,7 @@ class DBHandler:
         """
         if isinstance(target, str):
             target = getattr(DBTarget, target)
+        print(target)
         return psycopg.connect(dbname=target['dbname'], user=user, password=target['users'][user],
                                host=target['host'], port=target['port'])
 
@@ -254,4 +255,4 @@ class DBHandler:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    get_table_column_specs(False, True, 'LOCAL')
+    get_table_column_specs(True, True, DBTarget.LOCAL)

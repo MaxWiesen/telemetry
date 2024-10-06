@@ -5,10 +5,10 @@ from time import sleep
 
 
 if os.getenv('IN_DOCKER'):
-    from db_handler import DBHandler, get_table_column_specs    # Cheesed import statement using bind mount
+    from db_handler import DBHandler, DBTarget, get_table_column_specs    # Cheesed import statement using bind mount
     from mqtt_handler import MQTTHandler
 else:
-    from analysis.sql_utils.db_handler import DBHandler, get_table_column_specs
+    from analysis.sql_utils.db_handler import DBHandler, DBTarget, get_table_column_specs
     from stack.ingest.mqtt_handler import MQTTHandler
 
 
@@ -42,12 +42,19 @@ class DBProcessor:
             gate: human-measured gate that represents the starting line
         """
         
-        points: list[tuple[tuple[float, float], int]] = self.handler.simple_select(f"SELECT gps, packet_id FROM dynamics WHERE packet_id >= ${last_packet} ORDER BY packet_id ASC")
+        # points: list[tuple[tuple[float, float], int]] = self.handler.simple_select(f"SELECT gps, packet_id FROM dynamics WHERE packet_id >= ${last_packet} ORDER BY packet_id ASC LIMIT 500")
+        
+        points: list[tuple[tuple[float, float], int]] = self.handler.simple_select(f"
+            SELECT d.gps, p.time FROM dynamics d
+            WHERE d.packet_id >= ${last_packet} 
+            INNER JOIN packet p ON p.packet_id = d.packet_id
+            ORDER BY packet_id 
+            ASC LIMIT 500
+        ")
         
         for i in range(len(points) - 1):
             if(self.__is_intersection(gate, [points[i][0], points[i + 1][0]])):
-                times: tuple[int, int] = self.handler.simple_select(f"SELECTED time FROM packet WHERE packet_id = ${points[i][1]} OR packet_id = ${points[i + 1][1]}")
-                return (times[0] + times[1]) / 2
+                return (points[i][2] + points[i + 1][2]) / 2
             
             
         

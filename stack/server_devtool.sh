@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 
 echo "Welcome to the Telemetry Server CLI Devtool. Please pick from the following methods to start the server:"
 echo -e "\t1) Start the server (ONLY)"
@@ -11,7 +11,7 @@ echo
 
 while :
 do
-    read -n 1 opt
+    read -k 1 opt
     echo
     echo
     cd $(find . -name "ingest") || (echo "Failed to find ingest" && exit)
@@ -39,7 +39,7 @@ do
             while :
             do
                 echo "You are about to delete the Grafana dashboards saves on this computer. Are you sure you intend to delete this? [Y/n]"
-                read -n 1 yn
+                read -k 1 yn
                 echo
                 echo
                 case $yn in
