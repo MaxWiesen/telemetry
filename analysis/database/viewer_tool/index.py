@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parents[3]))
 from flask import Flask, render_template, url_for, request, redirect
 
-from analysis.sql_utils.db_handler import DBHandler
+from analysis.sql_utils.db_handler import DBHandler, DBTarget
 from stack.ingest.mqtt_handler import MQTTHandler
 
 app = Flask(__name__)
@@ -17,7 +17,7 @@ def index():
 
 @app.route('/new_drive_day/', methods=['GET'])
 def new_drive_day():
-    day_id = DBHandler.insert(table='drive_day', target='PROD', user='electric', data=request.args, returning='day_id')
+    day_id = DBHandler.insert(table='drive_day', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=request.args, returning='day_id')
     return redirect(url_for('.new_event', day_id=day_id, method='new'))
 
 
@@ -35,10 +35,10 @@ def create_event():
     except IndexError:
         last_packet = 0
     inputs['packet_start'] = last_packet + 1
-    day_id, event_id = DBHandler.insert(table='event', target='PROD', user='electric', data=inputs, returning=['day_id', 'event_id'])
+    day_id, event_id = DBHandler.insert(table='event', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=inputs, returning=['day_id', 'event_id'])
     with MQTTHandler('flask_app') as mqtt:
         mqtt.publish('/config/flask', json.dumps({'event_id': event_id}, indent=4))
-    return render_template('event_tracker.html', host_ip=os.getenv('HOST_IP', 'localhost'), event_id=event_id)
+    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=event_id)
 
 
 @app.route('/set_event_time/', methods=['POST'])
@@ -50,8 +50,8 @@ def set_event_time():
             request.json['packet_end'] = 1
         with MQTTHandler('flask_app') as mqtt:
             mqtt.publish('/config/flask', 'end_event')
-    DBHandler.set_event_status(**request.json, target='PROD', user='electric', returning='day_id')
-    return render_template('event_tracker.html', host_ip=os.getenv('HOST_IP', 'localhost'), event_id=request.json['event_id'])
+    DBHandler.set_event_status(**request.json, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
+    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=request.json['event_id'])
 
 
 @app.route('/tune_data', methods=['GET', 'POST'])
@@ -67,7 +67,7 @@ def turn_data():
     data = request.data
     json_object = json.loads(data)
     print(json_object)
-    return render_template('event_tracker.html', host_ip=os.getenv('HOST_IP', 'localhost'))
+    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)))
 
 
 @app.route('/accel_data', methods=['GET', 'POST'])
@@ -75,7 +75,7 @@ def accel_data():
     data = request.data
     json_object = json.loads(data)
     print(json_object)
-    return render_template('event_tracker.html', host_ip=os.getenv('HOST_IP', 'localhost'))
+    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)))
 
 
 @app.route('/texas_tune/', methods=['GET', 'POST'])

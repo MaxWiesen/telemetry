@@ -1,26 +1,31 @@
-import binascii
 import datetime
 import os
 import logging
 import json
 import pickle
 import base64
+import time
 import numpy as np
 from paho.mqtt import client as mqtt_client
 
 if os.getenv('IN_DOCKER'):
-    from db_handler import DBHandler, get_table_column_specs    # Cheesed import statement using bind mount
+    from db_handler import get_table_column_specs, DBTarget, DBHandler    # Cheesed import statement using bind mount
 else:
-    from analysis.sql_utils.db_handler import DBHandler, get_table_column_specs
+    from analysis.sql_utils.db_handler import get_table_column_specs, DBTarget, DBHandler
+
+
+class MQTTTarget:
+    LOCAL = 'localhost'
+    PROD = 'telemetry.servebeer.com'
 
 
 class MQTTHandler:
 
-    def __init__(self, name='python_client', host_ip=None):
+    def __init__(self, name='python_client', target=None):
         '''
         :param name:    str determining name of client to self-report to MQTT broker
         '''
-        self.host_ip = host_ip
+        self.target = target
         self.client = mqtt_client.Client(name)
         self.client.username = name
         self.client.on_connect = self.on_connect
@@ -47,14 +52,14 @@ class MQTTHandler:
 
         :return:        mqtt_client.Client object
         '''
-        self.client.connect(ip if ip else self.host_ip if self.host_ip else 'mosquitto' if os.getenv('IN_DOCKER') else 'localhost')
+        self.client.connect(ip if ip else self.target if self.target else 'mosquitto' if os.getenv('IN_DOCKER') else 'localhost')
         return self.client
 
     def disconnect(self):
         self.client.disconnect()
 
     def __enter__(self):
-        self.client.connect(self.host_ip if self.host_ip else 'mosquitto' if os.getenv('IN_DOCKER') else 'localhost')
+        self.client.connect(self.target if self.target else 'mosquitto' if os.getenv('IN_DOCKER') else 'localhost')
         return self.client
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -107,9 +112,7 @@ class MQTTHandler:
             logging.info('\tPickle Payload received, likely coming from debug source...')
         except pickle.UnpicklingError:
             data_dict = json.loads(payload.decode().replace("'", '"'))
-        if table not in ['dynamics', 'pack', 'controls', 'diagnostics', 'thermal']:
-            data_dict['event_id'] = os.environ['EVENT_ID']
-        DBHandler.insert(table, target='LOCAL', user='electric', data=data_dict)
+        DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=data_dict)
 
     def __b64_ingest(self, payload, high_freq: bool):
         if not os.getenv('EVENT_ID'):
@@ -120,7 +123,7 @@ class MQTTHandler:
         data_dict = self.preprocess_payload(data_dict, high_freq)
         db_desc = get_table_column_specs(force=True)
         for table in ['dynamics', 'controls', 'pack', 'diagnostics', 'thermal']:
-            DBHandler.insert(table, target='LOCAL', user='electric',
+            DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric',
                              data={col: data_dict[col] for col in db_desc[table] if col in data_dict})
 
     def __base64_decode(self, payload: str, high_freq: bool) -> dict:
@@ -195,8 +198,14 @@ def main():
     mqtt.connect('mosquitto')
     mqtt.subscribe(topic='#')
 
+
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=os.getenv('LOGLEVEL', 'DEBUG'))
+    if logging.root.level == logging.DEBUG:
+        time.sleep(1)
+        logging.debug('-' * 40 + '\n\n\t\tYOU ARE IN DEBUGGING MODE\n\n ' + '-' * 50)
+        os.environ['RTC_START'] = "-99999"
+        os.environ['EVENT_ID'] = "-99999"
     main()
 
     # mqtt = MQTTHandler('Test')
