@@ -38,7 +38,7 @@ def create_event():
     day_id, event_id = DBHandler.insert(table='event', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=inputs, returning=['day_id', 'event_id'])
     with MQTTHandler('flask_app') as mqtt:
         mqtt.publish('/config/flask', json.dumps({'event_id': event_id}, indent=4))
-    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=event_id)
+    return render_template('event_tracker.html', host_ip="localhost")
 
 
 @app.route('/set_event_time/', methods=['POST'])
@@ -51,7 +51,7 @@ def set_event_time():
         with MQTTHandler('flask_app') as mqtt:
             mqtt.publish('/config/flask', 'end_event')
     DBHandler.set_event_status(**request.json, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
-    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=request.json['event_id'])
+    return render_template('event_tracker.html', host_ip="localhost")
 
 
 @app.route('/tune_data', methods=['GET', 'POST'])
@@ -67,7 +67,7 @@ def turn_data():
     data = request.data
     json_object = json.loads(data)
     print(json_object)
-    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)))
+    return render_template('event_tracker.html', host_ip="localhost")
 
 
 @app.route('/accel_data', methods=['GET', 'POST'])
@@ -75,7 +75,7 @@ def accel_data():
     data = request.data
     json_object = json.loads(data)
     print(json_object)
-    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)))
+    return render_template('event_tracker.html', host_ip="localhost")
 
 
 @app.route('/texas_tune/', methods=['GET', 'POST'])
