@@ -5,6 +5,8 @@ echo -e "\t1) Start the server (ONLY)"
 echo -e "\t2) Delete the existing images"
 echo -e "\t3) Delete the existing images and telemetry_db volume"
 echo -e "\t4) Delete the existing images and both volumes (INCLUDING GRAFANA DASHBOARDS!)"
+echo -e "\tQ) Run Processor in background and start server"
+echo -e "\tW) Delete the existing server and processors images"
 echo
 
 while :
@@ -12,7 +14,7 @@ do
     read -n 1 opt
     echo
     echo
-    cd $(find ./ingest -name "docker-compose.yml") || exit
+    cd $(find . -name "ingest") || (echo "Failed to find ingest" && exit)
     id "postgres" > /dev/null 2>&1 && sudo pkill -u postgres
     case $opt in
         1)
@@ -58,6 +60,30 @@ do
                         ;;
                 esac
             done
+            break
+            ;;
+        q|Q)
+            sudo docker compose down
+            sudo docker compose up -d
+            cd ../processors || (echo "Failed to find processors" && exit)
+            sudo docker compose down
+            sudo docker compose up -d
+            echo "Processor container ID: $(sudo docker container ls | grep telemetry_processors | awk '{print $1}')"
+            cd ../ingest
+            sudo docker compose logs -f
+            break
+            ;;
+        w|W)
+            sudo docker compose down
+            sudo docker rmi "$(sudo docker image ls | grep telemetry_backend | awk '{print $3}')"
+            sudo docker rmi "$(sudo docker image ls | grep telemetry_processors | awk '{print $3}')"
+            sudo docker compose up -d
+            cd ../processors || (echo "Failed to find processors" && exit)
+            sudo docker compose down
+            sudo docker compose up -d
+            echo "Processor container ID: $(sudo docker container ls | grep telemetry_processors | awk '{print $1}')"
+            cd ../ingest
+            sudo docker compose logs -f
             break
             ;;
         *)
