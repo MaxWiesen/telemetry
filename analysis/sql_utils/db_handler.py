@@ -32,11 +32,14 @@ class DBTarget:
 
     @staticmethod
     def resolve_ip(ip):
-        return {DBTarget[target]['host']: target for target in list(filter(lambda x: '__' not in x, dir(DBTarget)))}[ip]
+        return {getattr(DBTarget, target)['host']: target for target in list(filter(lambda x: '__' not in x, dir(DBTarget)))}[ip]
 
     @staticmethod
     def resolve_target(target):
-        return {target: DBTarget[target]['host'] for target in list(filter(lambda x: '__' not in x, dir(DBTarget)))}[target]
+        if isinstance(target, dict):
+            return target['host']
+        else:
+            return {target: getattr(DBTarget, target)['host'] for target in filter(lambda x: '__' not in x, dir(DBTarget))}[target]
 
 
 def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL):
