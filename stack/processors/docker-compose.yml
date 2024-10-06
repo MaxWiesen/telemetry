@@ -14,3 +14,9 @@ services:
       - ../ingest/mqtt_handler.py:/processors/mqtt_handler.py
       - ../../analysis/sql_utils/db_handler.py:/processors/db_handler.py
       - ../../analysis/sql_utils/DB_description.pkl:/processors/DB_description.pkl
+    networks:
+      - telemetry_network
+
+networks:
+  telemetry_network:
+    external: true

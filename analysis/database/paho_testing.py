@@ -215,17 +215,16 @@ class DataTester:
         for index, row_dict in dict.items():
             packet_row = {}
             packet_row["packet_id"] = row_dict["packet_id"]
-            packet_row["time"] = time.time()
+            packet_row["time"] = round(time.time())
             
             dynamics_row = {};
             dynamics_row["packet_id"] = row_dict["packet_id"]
-            dynamics_row["gps"] = row_dict["gps"]
+            dynamics_row["gps"] = (float(row_dict["gps_lat"]), float(row_dict["gps_long"]))
             
             print("PACKET ROW: ", packet_row)
             print("DYNAMICS ROW: ", dynamics_row)
             
             self.mqtt.publish(f'data/packet', pickle.dumps(packet_row))
-            time.sleep(delay)
             self.mqtt.publish(f'data/dynamics', pickle.dumps(dynamics_row))
             time.sleep(delay)
         return 0

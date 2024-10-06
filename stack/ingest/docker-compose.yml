@@ -8,6 +8,8 @@ services:
     ports:
       - "1883:1883"
       - "9001:9001"
+    networks:
+      - telemetry_network
 
   ingest:
     build:
@@ -27,6 +29,8 @@ services:
     volumes:
       - ../../analysis/sql_utils/db_handler.py:/ingest/db_handler.py
       - ../../analysis/sql_utils/DB_description.pkl:/ingest/DB_description.pkl
+    networks:
+      - telemetry_network
 
   db:
     image: postgres
@@ -44,6 +48,8 @@ services:
     tmpfs:
       - /tmp
       - /run/postgresql
+    networks:
+      - telemetry_network
 
   grafana:
     image: grafana/grafana-oss
@@ -56,9 +62,15 @@ services:
     ports:
       - "3000:3000"
     cpus: 0.5               # Caps Grafana CPU utilization
+    networks:
+      - telemetry_network
 
 volumes:
   grafana_storage:
     external: true
   telemetry_db:
+    external: true
+
+networks:
+  telemetry_network:
     external: true

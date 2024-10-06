@@ -1,6 +1,7 @@
 import os
 import logging
 from time import sleep
+import pandas as pd
 
 
 
@@ -34,7 +35,7 @@ class DBProcessor:
         
         
 
-    def track_loop(self, last_packet: int, gate: tuple[tuple[float, float], tuple[float, float]]) -> float | None:
+    def track_loop(self, last_packet: int, gate: tuple[tuple[float, float], tuple[float, float]], handler: DBHandler) -> float | None:
         """
         Checks if a circuit loop has happened after a given packet
         Args:
@@ -44,17 +45,17 @@ class DBProcessor:
         
         # points: list[tuple[tuple[float, float], int]] = self.handler.simple_select(f"SELECT gps, packet_id FROM dynamics WHERE packet_id >= ${last_packet} ORDER BY packet_id ASC LIMIT 500")
         
-        points: list[tuple[tuple[float, float], int]] = self.handler.simple_select(f"
-            SELECT d.gps, p.time FROM dynamics d
-            WHERE d.packet_id >= ${last_packet} 
-            INNER JOIN packet p ON p.packet_id = d.packet_id
-            ORDER BY packet_id 
-            ASC LIMIT 500
-        ")
+        points: list[tuple[str, int]] = self.handler.simple_select(f"SELECT d.gps, p.time FROM dynamics d JOIN packet p ON p.packet_id = d.packet_id WHERE d.packet_id >= {last_packet} ORDER BY d.packet_id ASC LIMIT 500", handler=handler, target=DBTarget.LOCAL)
         
+        parsed_points: list[tuple[tuple[float, float], int]] = []
+        
+        for point in points:
+            gps_str: str = point[0]
+            parsed_points.append((tuple(map(int, gps_str[1:-1].split(', ')))), point[1])
+    
         for i in range(len(points) - 1):
-            if(self.__is_intersection(gate, [points[i][0], points[i + 1][0]])):
-                return (points[i][2] + points[i + 1][2]) / 2
+            if(self.__is_intersection(gate, [parsed_points[i][0], parsed_points[i + 1][0]])):
+                return (parsed_points[i][1] + parsed_points[i + 1][1]) / 2
             
             
         
@@ -89,10 +90,13 @@ def main():
     
     gate = [[30.2672, -97.7431], [30.2673, -97.7432]]
     
+    handler = DBHandler()
+    
     while True:
-        last_packet: int = DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1", target='LOCAL')[0] 
+        # last_packet: int = DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1", target=DBTarget.LOCAL, handler=handler)[0] 
+        last_packet = 0
         sleep(5)
-        loop = processor.track_loop(last_packet=last_packet, gate=gate)
+        loop = processor.track_loop(last_packet=last_packet, gate=gate, handler=handler)
         if(loop):
             print(loop)
             
