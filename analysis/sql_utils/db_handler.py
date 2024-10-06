@@ -6,9 +6,10 @@ import datetime
 import os
 import psycopg
 from psycopg.types.json import Jsonb
+from enum import Enum
 
 
-class DBTarget:
+class DBTarget():
     LOCAL = {
         'dbname': 'telemetry',
         'users': {
@@ -36,7 +37,11 @@ class DBTarget:
 
     @staticmethod
     def resolve_target(target):
-        return {target: DBTarget[target]['host'] for target in list(filter(lambda x: '__' not in x, dir(DBTarget)))}[target]
+        try:
+            return {target: getattr(DBTarget, target)['host'] for target in list(filter(lambda x: x == x.upper(), dir(DBTarget)))}[target]
+        except TypeError:
+            return target['host']
+
 
 
 def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL):
@@ -254,4 +259,5 @@ class DBHandler:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    get_table_column_specs(False, True, 'LOCAL')
+    # get_table_column_specs(False, True, 'LOCAL')
+    print(DBTarget.resolve_target('localhost'))
