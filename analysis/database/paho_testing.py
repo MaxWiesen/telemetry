@@ -1,7 +1,7 @@
-import os
-import base64
-import random
+from itertools import count
+from typing import Tuple, Union
 import numpy as np
+import pandas as pd
 from numpy.random import default_rng
 import time
 import datetime
@@ -9,21 +9,18 @@ import pickle
 import json
 import requests
 import logging
-from itertools import count
 from tqdm import tqdm
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from pathlib import Path
 from psycopg.types.json import Jsonb
-from typing import Union, Tuple
 
 sys.path.append(str(Path(__file__).parents[2]))
 
 from stack.ingest.mqtt_handler import MQTTHandler
 from analysis.sql_utils.db_handler import get_table_column_specs
 
-import pandas as pd
 
 
 class DataTester:
@@ -213,8 +210,8 @@ class DataTester:
         dict = pd.read_csv(file).to_dict(orient='index')
         
         for index, row_dict in dict.items():
-            packet_row = {};
-            dynamics_row["packet_id"] = row_dict["packet_id"]
+            packet_row = {}
+            packet_row["packet_id"] = row_dict["packet_id"]
             packet_row["time"] = time.time()
             
             dynamics_row = {};
@@ -230,8 +227,8 @@ class DataTester:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    mqtt = MQTTHandler('max_test', 'telemetry.servebeer.com')
-    mqtt.connect('telemetry.servebeer.com')
+    mqtt = MQTTHandler('terence_test', 'localhost')
+    mqtt.connect('localhost')
     dbtest = DataTester(mqtt)
         # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
     # dbtest.single_table_test('dynamics', 500, .1)

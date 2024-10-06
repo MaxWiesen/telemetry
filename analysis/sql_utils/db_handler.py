@@ -74,7 +74,8 @@ class DBHandler:
                 'grafana': 'frontend',
                 'analysis': 'north_dakota'
             },
-            'host': 'db' if os.getenv('IN_DOCKER') and 'local' in os.getenv('HOST_IP', 'localhost') else os.getenv('HOST_IP', 'localhost'),
+            # 'host': 'db' if os.getenv('IN_DOCKER') and 'local' in os.getenv('HOST_IP', 'localhost') else os.getenv('HOST_IP', 'localhost'),
+            'host': 'localhost',
             'port': 5432
         },
         'PROD': {
@@ -251,4 +252,4 @@ class DBHandler:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    get_table_column_specs(True, True, 'PROD')
+    get_table_column_specs(True, True, 'LOCAL')
