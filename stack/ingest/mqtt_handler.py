@@ -204,4 +204,8 @@ if __name__ == '__main__':
     # os.environ['EVENT_ID'] = '0'
     # data = mqtt.base64_decode(b'AZMiAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAFNEAABUAAAA89gEAABmEC8oF/QHjAbkBlgFvAwQmgQG3wvz8PgBmif4Iev/K2gAAAAAAAMr+8/5LJ2HXT/1NAgAAAAAAAIX+rx3rGLcB1+MbGwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAA+I18TQMpCCb5QbRjBAAAAAAAAAAA=', True)
     # print(data)
+<<<<<<< HEAD
     # print(MQTTHandler.preprocess_payload(data, True))
+=======
+    # print(MQTTHandler.preprocess_payload(data, True))
+>>>>>>> edbbb69a6e6d19bae00cca7d7ad5e6cf65db118a
