@@ -213,7 +213,13 @@ if __name__ == '__main__':
     mqtt.connect('telemetry.servebeer.com')
     dbtest = DataTester(mqtt)
         # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
-    dbtest.single_table_test('dynamics', 500, .1)
+
+    # i= 0
+    # while i< 100 :
+    #     dbtest.send_base64_row(1)
+    #     i+= 1
+
+
     mqtt.disconnect()
         # print(dbtest.get_desc(tables='dynamics'))
     # dbtest.base64_encode(1, mqtt)
