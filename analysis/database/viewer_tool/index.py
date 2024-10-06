@@ -45,7 +45,7 @@ def create_event():
 def set_event_time():
     if request.json['status'] == 0:
         try:
-            request.json['packet_end'] = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0]
+            request.json['packet_end'] = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
         except IndexError:
             request.json['packet_end'] = 1
         with MQTTHandler('flask_app') as mqtt:
