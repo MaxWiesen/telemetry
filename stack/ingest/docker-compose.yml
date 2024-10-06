@@ -15,10 +15,12 @@ services:
       dockerfile: Dockerfile
     image: telemetry_backend
     container_name: ingest
+    restart: unless-stopped
     environment:
       PYTHONUNBUFFERED: 1   # Allows output in Docker Compose console
       IN_DOCKER: 1          # Custom env variable used for IP resolution
-      HOST_IP: 'localhost'
+      SERVER_TARGET: 'LOCAL'
+      LOGLEVEL: 'DEBUG'
     depends_on:
       - mosquitto
       - db

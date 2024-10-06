@@ -8,7 +8,38 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 
-def get_table_column_specs(force=False, verbose=False, target='PROD'):
+class DBTarget:
+    LOCAL = {
+        'dbname': 'telemetry',
+        'users': {
+            'electric': '2fast2quick',
+            'grafana': 'frontend',
+            'analysis': 'north_dakota'
+        },
+        'host': 'db' if os.getenv('IN_DOCKER') else os.getenv('HOST_IP', 'localhost'),
+        'port': 5432
+    }
+    PROD = {
+        'dbname': 'telemetry',
+        'users': {
+            'electric': '2fast2quick',
+            'grafana': 'frontend',
+            'analysis': 'north_dakota'
+        },
+        'host': 'telemetry.servebeer.com',
+        'port': 5432
+    }
+
+    @staticmethod
+    def resolve_ip(ip):
+        return {DBTarget[target]['host']: target for target in list(filter(lambda x: '__' not in x, dir(DBTarget)))}[ip]
+
+    @staticmethod
+    def resolve_target(target):
+        return {target: DBTarget[target]['host'] for target in list(filter(lambda x: '__' not in x, dir(DBTarget)))}[target]
+
+
+def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL):
     """
     Gets description of DB layout using either recent pkl file or request to database. Returns description in form of
     dict as follows: {'power': {'cooling_flow': (<class 'float'>, 0), col2: (type2, num_dimension), ...}, table2: {...}}
@@ -31,7 +62,7 @@ def get_table_column_specs(force=False, verbose=False, target='PROD'):
         return None
 
     desc_path = '/ingest/DB_description.pkl' if os.getenv('IN_DOCKER') else find_db_description()
-    force = not bool(desc_path)
+    force = force or not bool(desc_path)
     desc_path = desc_path or os.getcwd().rsplit('/analysis', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
 
     if not force:
@@ -64,31 +95,8 @@ class DBHandler:
     """
     Class for interfacing with the database
     """
-    DB_CONFIG = {
-        'LOCAL': {
-            'dbname': 'telemetry',
-            'users': {
-                'electric': '2fast2quick',
-                'grafana': 'frontend',
-                'analysis': 'north_dakota'
-            },
-            # 'host': 'db' if os.getenv('IN_DOCKER') and 'local' in os.getenv('HOST_IP', 'localhost') else os.getenv('HOST_IP', 'localhost'),
-            'host': 'localhost',
-            'port': 5432
-        },
-        'PROD': {
-            'dbname': 'telemetry',
-            'users': {
-                'electric': '2fast2quick',
-                'grafana': 'frontend',
-                'analysis': 'north_dakota'
-            },
-            'host': 'telemetry.servebeer.com',
-            'port': 5432
-        }
-    }
 
-    def connect(self, target='PROD', user='analysis'):
+    def connect(self, target=DBTarget.LOCAL, user='analysis'):
         """
         Creates psycopg.connection instance, pulling info from DB_CONFIG according to input target and user
 
@@ -97,14 +105,13 @@ class DBHandler:
 
         :return conn:       psycopg.connection pointing at target, user and is used to generate cursors
         """
-        if target not in self.DB_CONFIG:
-            raise ValueError(f'Target server {target} was not contained in DB_CONFIG.')
-        config = self.DB_CONFIG[target]
-        return psycopg.connect(dbname=config['dbname'], user=user, password=config['users'][user],
-                               host=config['host'], port=config['port'])
+        if isinstance(target, str):
+            target = getattr(DBTarget, target)
+        return psycopg.connect(dbname=target['dbname'], user=user, password=target['users'][user],
+                               host=target['host'], port=target['port'])
 
     @classmethod
-    def simple_select(cls, query: str, target='PROD', user='electric', handler=None, return_df=False, **pd_kwargs):
+    def simple_select(cls, query: str, target=DBTarget.LOCAL, user='electric', handler=None, return_df=False, **pd_kwargs):
         """
         Simple, easy way to get data from database. ONLY USED FOR SELECTING
 
@@ -135,7 +142,7 @@ class DBHandler:
                 return cur.fetchall()
 
     @staticmethod
-    def get_insert_values(table: str, data: dict):
+    def get_insert_values(table: str, data: dict, table_desc):
         """
         Collects data to be inserted into database. Accepts a target table and data payload, makes table-specific
         pre-processing changes, packages column names and values to be used in final insertion.
@@ -145,9 +152,6 @@ class DBHandler:
 
         :return data:       dict containing preprocessed column name and values
         """
-        # Gather expected table columns
-        table_desc = get_table_column_specs()[table]
-
         # Individual table modifications
         if table == 'drive_day':
             data['date'] = datetime.date.today()
@@ -172,7 +176,7 @@ class DBHandler:
         return data
 
     @classmethod
-    def insert(cls, table: str, target='PROD', user='analysis', data=None, returning=None):
+    def insert(cls, table: str, target=DBTarget.LOCAL, user='analysis', data=None, returning=None):
         """
         Targets a table and sends an individual row of data to database, with ability to get columns from the last row.
 
@@ -187,12 +191,12 @@ class DBHandler:
         if data is None:
             raise ValueError('No data in payload.')
 
-        table_desc = get_table_column_specs()[table]
+        table_desc = get_table_column_specs(target=target)[table]
 
         if returning is None:
             returning = next(iter(table_desc.keys()))   # Use name of first column of table if not explicitly passed
 
-        data = cls.get_insert_values(table, dict(data))
+        data = cls.get_insert_values(table, dict(data), table_desc)
 
         def flat_gen(data):
             # Dumb function to flatten dtype list to conform to psycopg requirements
@@ -213,7 +217,7 @@ class DBHandler:
                 return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
     @staticmethod
-    def set_event_status(event_id: int, status: int, target='PROD', user='analysis', packet_end=None, returning=None):
+    def set_event_status(event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', packet_end=None, returning=None):
         """
         Targets an event_id and updates the start or end time, with ability to get columns from the affected row.
 

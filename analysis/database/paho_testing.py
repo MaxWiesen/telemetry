@@ -15,10 +15,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from pathlib import Path
 from psycopg.types.json import Jsonb
-
-sys.path.append(str(Path(__file__).parents[2]))
-
-from stack.ingest.mqtt_handler import MQTTHandler
+from typing import Union, Tuple
+from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 from analysis.sql_utils.db_handler import get_table_column_specs
 
 
@@ -227,17 +225,9 @@ class DataTester:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    mqtt = MQTTHandler('terence_test', 'localhost')
-    mqtt.connect('localhost')
+    mqtt = MQTTHandler('max_test', MQTTTarget.LOCAL)
+    mqtt.connect()
     dbtest = DataTester(mqtt)
-        # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
-    # dbtest.single_table_test('dynamics', 500, .1)
-    dbtest.add_data_for_gps("gps_test_data.csv", .1)
+    # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
+    dbtest.single_table_test('packet', 500, .1)
     mqtt.disconnect()
-        # print(dbtest.get_desc(tables='dynamics'))
-    # dbtest.base64_encode(1, mqtt)
-    # mqtt.disconnect()
-    # print(dbtest.create_row(dbtest.get_desc(tables='dynamics', rm_cols=['event_id'])['dynamics']))
-    # dbtest.single_table_test('dynamics', 500, .1, ['event_id'], client=client)
-    # client.disconnect()
-    # dt.concurrent_tables_test(['dynamics', 'electronics'], 5000, .01, ['event_id'])
