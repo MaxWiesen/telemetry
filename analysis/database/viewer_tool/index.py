@@ -88,7 +88,11 @@ def vcu_parameters():
 
 @app.route('/gates/', methods=['POST'])
 def create_gates():
-    pass
+    latitude = request.json['latitude']
+    longitude = request.json['longitude']
+    with MQTTHandler('flask_app') as mqtt:
+        mqtt.publish('/config/gates', json.dumps({'latitude': latitude, 'longitude': longitude}))
+    return
 
 
 if __name__ == '__main__':

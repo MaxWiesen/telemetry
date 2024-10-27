@@ -215,7 +215,7 @@ class DataTester:
         for index, row_dict in dict.items():
             packet_row = {}
             packet_row["packet_id"] = row_dict["packet_id"]
-            packet_row["time"] = round(time.time())
+            packet_row["time"] = round(time.time() * 1000)
             
             dynamics_row = {};
             dynamics_row["packet_id"] = row_dict["packet_id"]
@@ -228,6 +228,12 @@ class DataTester:
             self.mqtt.publish(f'data/dynamics', pickle.dumps(dynamics_row))
             time.sleep(delay)
         return 0
+    
+    def start_event_with_gate(self, event_id: str, gate: tuple[float, float]):
+        config = {"event_id": event_id, "gate": gate, "status": 0, "start_packet": 0}
+        self.mqtt.publish(f'config/test', json.dumps(config))
+        return
+        
 
 
 if __name__ == '__main__':
@@ -237,5 +243,8 @@ if __name__ == '__main__':
     dbtest = DataTester(mqtt)
     # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
     # dbtest.single_table_test('packet', 500, .1)
-    dbtest.add_data_for_gps("gps_test_data.csv", .5)
-    mqtt.disconnect()
+    
+    
+    dbtest.start_event_with_gate(1, ((30.289727, -97.736346), (30.289604, -97.736272)))
+    dbtest.add_data_for_gps("gps_test_data_2.csv", 1)
+    # mqtt.disconnect()

@@ -77,28 +77,45 @@ class DBProcessor:
 
         # Check if t and u are between 0 and 1 (i.e., the intersection occurs within the segments)
         return 0 <= t <= 1 and 0 <= u <= 1
+    
+    def record_time(self, time: int, handler: DBHandler):
+        if os.environ['EVENT_ID'] == None:
+            return
+        
+        db_obj = {
+            "event_id": os.environ['EVENT_ID'],
+            "type": "lap",
+            "start_time": time
+        }
+        
+        handler.insert(table="classifier", data=db_obj, handler=handler, target=DBTarget.LOCAL)
         
         
+
+def run_lap_timer(processor: DBProcessor, handler: DBHandler):
+    gate = [[30.2672, -97.7431], [30.2673, -97.7432]]
+    while True:
+        query = DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1", target=DBTarget.LOCAL, handler=handler)
+        sleep(5)
+        # No Packet
+        if query == None or len(query) == 0:
+            continue
+        last_packet: int = query[0] 
+        # Get Time of intersect
+        loop = processor.track_loop(last_packet=last_packet, gate=gate, handler=handler)
+        if(loop):
+            print(loop)
+            # Add time to classifier
+            processor.record_time(time=loop, handler=handler)
         
         
 def main():
     # with MQTTHandler(name="terence_dev", host_ip='localhost') as mqtt:
         
-        # initialize db handler
-    
     processor = DBProcessor()
-    
-    gate = [[30.2672, -97.7431], [30.2673, -97.7432]]
-    
     handler = DBHandler()
     
-    while True:
-        # last_packet: int = DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1", target=DBTarget.LOCAL, handler=handler)[0] 
-        last_packet = 0
-        sleep(5)
-        loop = processor.track_loop(last_packet=last_packet, gate=gate, handler=handler)
-        if(loop):
-            print(loop)
+    run_lap_timer(processor=processor, handler=handler)
             
     while True:
         processor.check_alive()
