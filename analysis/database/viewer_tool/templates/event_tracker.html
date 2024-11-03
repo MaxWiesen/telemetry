@@ -104,48 +104,59 @@
             function onConnect() {
                 //Once connected, subscribe
                 console.log("onConnect"); //TODO remove, testing only
-                client.subscribe("page_sync");
+                client.subscribe("event_sync")
             }
             //New message callback
             function onMessageArrived(message) {
                 decodeValues(message.payloadString)
             }
             function onConnectionLost() {
-                console.log("DISCON NOW")
+                console.log("CONNECTION LOST") //TODO debug only
             }
 
             //TODO when client loses connection
 
             //Change in start button state detected
             startButton.addEventListener('click', function() {
-                //Make changes locally
-                startButton.setAttribute("isRunning", true)
-                saveButton.setAttribute("disabled", true)
-                watch.start();
-
                 //Make changes to outgoing image
-                encodeValues()
+                encodeValues(true, Date.now())
+
+                //Alert database about changes TODO remove?
+                let xhr = new XMLHttpRequest()
+                xhr.open('POST', host_ip + ':5000/set_event_time', true)
+                xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
+                xhr.send(JSON.stringify({
+                    event_id: event_id,
+                    status: 1}))
             })
 
             stopButton.addEventListener('click', function() {
-                saveButton.removeAttribute("disabled")
-                startButton.setAttribute("isRunning", false)
-                watch.stop();
-                let xhr = new XMLHttpRequest()
+                //Make changes to outgoing image
+                encodeValues(false, Date.now())
 
+                //Alert database about changes TODO remove?
+                let xhr = new XMLHttpRequest()
                 xhr.open('POST', host_ip + ':5000/set_event_time', true)
                 xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
                 xhr.send(JSON.stringify({
                     event_id: event_id,
                     status: 0}))
-            });
+            })
 
             turnButton.addEventListener('click', function() {
-                watch.turn();
+                //Ensure the timer is running, otherwise do nothing
+                if (startButton.getAttribute("isRunning") === "true") {
+                    watch.turn()
+                    encodeValues(startButton.getAttribute("isRunning"), null, watch.isTurning(), watch.isAccel())
+                }
             });
 
             accelButton.addEventListener('click', function() {
-                watch.accel();
+                //Ensure the timer is running, otherwise do nothing
+                if (startButton.getAttribute("isRunning") === "true") {
+                    watch.accel();
+                    encodeValues(startButton.getAttribute("isRunning"), null, watch.isTurning(), watch.isAccel())
+                }
             });
 
             saveButton.addEventListener('click', function() {

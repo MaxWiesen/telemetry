@@ -6,6 +6,8 @@ import datetime
 import os
 import psycopg
 from psycopg.types.json import Jsonb
+import sys
+from pathlib import Path
 
 
 class DBTarget:
@@ -36,8 +38,10 @@ class DBTarget:
 
     @staticmethod
     def resolve_target(target):
-        return {target: DBTarget[target]['host'] for target in list(filter(lambda x: '__' not in x, dir(DBTarget)))}[target]
-
+        try:
+            return {target: DBTarget[target]['host'] for target in list(filter(lambda x: '__' not in x, dir(DBTarget)))}[target]
+        except TypeError:
+            return target['host']
 
 def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL):
     """
@@ -51,7 +55,8 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL):
     :return db_description: dict represents current layout of DB--see function description for more explanation
     """
     def find_db_description():
-        root_folder = '/analysis' if 'analysis' in os.getcwd() else '/LHR'
+        print(str(Path(__file__).parents[2]))
+        root_folder = 'analysis' if 'analysis' in (cwd := os.getcwd()) else '/LHR'
         for root, dirs, files in os.walk(f'{os.getcwd().rsplit(root_folder, 1)[0]}/{root_folder}'):
             for fol in dirs:
                 if fol == 'DB_description.pkl':

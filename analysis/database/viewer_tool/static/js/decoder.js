@@ -1,68 +1,75 @@
 //Decodes information from .json file and updates the client's instances
 function decodeValues(jsonObj) {
-    console.log("Decoder Triggered w Obj: " + jsonObj) //TODO remove, DEBUG only
+    console.log("Decoder Triggered\nPayload: " + jsonObj) //TODO remove, DEBUG only
 
     //Decode string to actual JSON object
     jsonObj = JSON.parse(jsonObj)
-    console.log("Converted to JSON")
 
-    //Pull all relevant on-screen elements to be updated
-    //let startButton = document.getElementById('startButton');
-    //let stopButton = document.getElementById('stopButton');
-    //let clock = document.getElementById('timer');
-    //TODO more elements here later...
-
-    //Update page by button elements
+    //Update page by element
     updateStartButton()
-    //updateStopButton()
+    updateStopButton()
+    updateTurn()
+    updateAccel()
 
     function updateStartButton() {
-        console.log("Considering updating start.")
-        console.log(jsonObj.timerRunning + " " + startButton.getAttribute("isRunning"))
         //If timer is running but this object is not, update this object
         if (jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "false")) {
-            console.log("Starting this instance's timer.")
-
             //Set local attributes
             startButton.setAttribute("isRunning", true)
             saveButton.setAttribute("disabled", true)
-            watch.startAt(jsonObj.unixTimerStarted);
-
-            //Alert database about changes
-            let xhr = new XMLHttpRequest()
-            xhr.open('POST', host_ip + ':5000/set_event_time', true)
-            xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
-            xhr.send(JSON.stringify({
-                event_id: event_id,
-                status: 1}))
+            watch.startAt(jsonObj.timerEventTime);
+            //TODO database push?
         }
     }
 
     function updateStopButton() {
-        //Check if states do NOT match
-        if (jsonObj.stopStatus !== startButton.getAttribute("isRunning")) {
-            //Update states to match by stopping TODO finish state check
-            stopButton.click();
+        //If timer is not running but this object is, update object
+        if (!jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "true")) {
+            //Update states to match by stopping
+            saveButton.removeAttribute("disabled")
+            startButton.setAttribute("isRunning", false)
+            watch.stopAt(jsonObj.timerInternalTime)
+            //TODO database push?
         }
     }
-}
 
-//TODO remove testing data
-//Data to be invoked for testing
-const jsonDataTest1 = {
-    "startStatus": false,
-    "stopStatus": false,
-    "unixTime": 1729457473500
-};
+    function updateTurn(qualifiedName, value) {
+        //If turn is running but this object's is not, update local
+        if (jsonObj.turnRunning && !watch.isTurning()) {
+            //Start the turn
+            watch.turnAt(jsonObj.timerInternalTime)
 
-const jsonDataTest2 = {
-    "startStatus": true,
-    "stopStatus": false,
-    "unixTime": 1729457473500
-}
+        //If turn is not running but this object's is, update local
+        } else if (!jsonObj.turnRunning && watch.isTurning()) {
+            //Stop the turn
+            watch.turnAt(jsonObj.timerInternalTime)
+        } //Else states match, do nothing
 
-const jsonDataTest3 = {
-    "startStatus": true,
-    "stopStatus": true,
-    "unixTime": 1729457473500
+        //If the timer is running, enable the button, otherwise disable
+        // if (jsonObj.timerRunning) {
+        //     turnButton.setAttribute("disabled", false)
+        // } else {
+        //     turnButton.setAttribute("disabled", true)
+        // }
+    }
+
+    function updateAccel() {
+        //If accel is running but this object's is not, update local
+        if (jsonObj.accelRunning && !watch.isAccel()) {
+            //Start the accel
+            watch.accelAt(jsonObj.timerInternalTime)
+
+        //If accel is not running but this object's is, update local
+        } else if (!jsonObj.accelRunning && watch.isAccel()) {
+            //Stop the accel
+            watch.accelAt(jsonObj.timerInternalTime)
+        } //Else states match, do nothing
+
+        //If the timer is running, enable the button, otherwise disable
+        // if (jsonObj.timerRunning) {
+        //     accelButton.setAttribute("disabled", false)
+        // } else {
+        //     accelButton.setAttribute("disabled", true)
+        // }
+    }
 }
