@@ -57,10 +57,6 @@
                     </tr>
                 </thead>
             </table>
-
-            <div>
-                <button type="submit" id="save" class="btn btn-primary btn-lg btn-block">Save</button>
-            </div>
         </div>
         
 
@@ -78,8 +74,6 @@
 
             let turnButton = document.getElementById('turnButton');
             let accelButton = document.getElementById('accelButton')
-            let saveButton = document.getElementById('save');
-            saveButton.setAttribute("disabled", false)
 
             let watch = new Stopwatch(timer, tab);
             let event_id = {{ event_id }}
@@ -120,27 +114,11 @@
             startButton.addEventListener('click', function() {
                 //Make changes to outgoing image
                 encodeValues(true, Date.now())
-
-                //Alert database about changes TODO remove?
-                let xhr = new XMLHttpRequest()
-                xhr.open('POST', host_ip + ':5000/set_event_time', true)
-                xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
-                xhr.send(JSON.stringify({
-                    event_id: event_id,
-                    status: 1}))
             })
 
             stopButton.addEventListener('click', function() {
                 //Make changes to outgoing image
                 encodeValues(false, Date.now())
-
-                //Alert database about changes TODO remove?
-                let xhr = new XMLHttpRequest()
-                xhr.open('POST', host_ip + ':5000/set_event_time', true)
-                xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
-                xhr.send(JSON.stringify({
-                    event_id: event_id,
-                    status: 0}))
             })
 
             turnButton.addEventListener('click', function() {
@@ -159,10 +137,6 @@
                 }
             });
 
-            saveButton.addEventListener('click', function() {
-                watch.tableToJSON(document.getElementById('turn-table'), 'http://localhost:5000/turn_data');
-                watch.tableToJSON(document.getElementById('accel-table'), 'http://localhost:5000/accel_data');
-            });
         </script>
     </div>
     <button onClick="getLocation()">Add Marker</button>

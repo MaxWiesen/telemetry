@@ -16,7 +16,6 @@ function decodeValues(jsonObj) {
         if (jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "false")) {
             //Set local attributes
             startButton.setAttribute("isRunning", true)
-            saveButton.setAttribute("disabled", true)
             watch.startAt(jsonObj.timerEventTime);
             //TODO database push?
         }
@@ -26,7 +25,6 @@ function decodeValues(jsonObj) {
         //If timer is not running but this object is, update object
         if (!jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "true")) {
             //Update states to match by stopping
-            saveButton.removeAttribute("disabled")
             startButton.setAttribute("isRunning", false)
             watch.stopAt(jsonObj.timerInternalTime)
             //TODO database push?
