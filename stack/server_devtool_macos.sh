@@ -16,7 +16,7 @@ do
     echo
     echo
     cd $(find . -name "ingest") || (echo "Failed to find ingest" && exit)
-    id "postgres" > /dev/null 2>&1 && sudo pkill -u postgres
+    brew services stop postgresql
     case $opt in
         1)
             docker compose down

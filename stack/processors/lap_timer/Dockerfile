@@ -3,7 +3,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 FROM builder AS executor
-WORKDIR /processors
-COPY . /processors
+WORKDIR /lap_timer
+COPY . /lap_timer
 
-CMD ["python", "./processor.py"]
+CMD ["python", "./main.py"]
