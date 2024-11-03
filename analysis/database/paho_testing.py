@@ -2,6 +2,7 @@ import os
 import base64
 import random
 import numpy as np
+import secrets
 from numpy.random import default_rng
 import time
 import datetime
@@ -21,7 +22,6 @@ from typing import Union, Tuple
 sys.path.append(str(Path(__file__).parents[2]))
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 from analysis.sql_utils.db_handler import get_table_column_specs
-
 
 
 
@@ -111,8 +111,11 @@ class DataTester:
             res = [requests.get('https://baconipsum.com/api/',
                                 params={'type': 'meat-and-filler', 'sentences': kwargs.get('length', 10),
                                         'start-with-lorem': 1}).text[2:-2] for _ in range(size)]
+        elif dtype is bytearray:
+            res = secrets.token_bytes(16)
+            
         else:
-            raise NotImplementedError(f'Data type {dtype} not implemented yet.')
+            logging.warning(f'Data type {dtype} not implemented yet.')
 
         return res[0] if as_scalar else list(res)
 
@@ -127,7 +130,7 @@ class DataTester:
         row = {}
         for col, (dtype, ndims) in table_desc.items():
             if col == 'time':
-                row[col] = time.time()
+                row[col] = time.time() * 1000
             elif col == 'packet_id':
                 row[col] = next(self.packet_enum)
             elif dtype is datetime.datetime:
@@ -214,6 +217,7 @@ if __name__ == '__main__':
     mqtt = MQTTHandler('max_test', MQTTTarget.LOCAL)
     mqtt.connect()
     dbtest = DataTester(mqtt)
-    dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, mqtt_handler=mqtt)
+    # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, mqtt_handler=mqtt)
     # dbtest.single_table_test('packet', 500, .1)
+    dbtest.single_table_test('diagnostics', 500, .1)
     mqtt.disconnect()
