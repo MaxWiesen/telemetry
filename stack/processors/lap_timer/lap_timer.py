@@ -219,17 +219,17 @@ class LapTimerProcessor:
             # print(f"SELECT d.gps, p.time FROM dynamics d JOIN packet p ON p.packet_id = d.packet_id WHERE d.packet_id >= {self.start_packet} ORDER BY d.packet_id DESC LIMIT {window_size}")
 
             # Not enough points
-            # if len(points) < window_size:
-            #     logging.warning("Not enough points for computation. Trashing the instance")
-            #     sleep(1 / frequency)
-            #     continue
+            if len(points) < window_size:
+                logging.warning("Not enough points for computation. Trashing the instance")
+                sleep(1 / frequency)
+                continue
             
             # Suspicious time deltas
-            # MAX_TIME_DELTA = 5 * 1000
-            # if points[len(points) - 1][1] - points[0][1] < MAX_TIME_DELTA:
-            #     logging.error(f"Interval is suspicious: {points[len(points) - 1][1] - points[0][1]}ms. Trashing the instance")
-            #     sleep(1 / frequency)
-            #     continue
+            MAX_TIME_DELTA = 5 * 1000
+            if points[len(points) - 1][1] - points[0][1] < MAX_TIME_DELTA:
+                logging.error(f"Interval is suspicious: {points[len(points) - 1][1] - points[0][1]}ms. Trashing the instance")
+                sleep(1 / frequency)
+                continue
             
             # Parse points
             df = pd.DataFrame(points, columns=['gps_str', 'timestamp'])
