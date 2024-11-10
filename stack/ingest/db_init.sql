@@ -194,7 +194,7 @@ CREATE TABLE public.pack (
     lv_c                real,
     contactor_state     smallint,
     avg_cell_v          real,
-    avg_cell_temp       smallint,
+    avg_cell_temp       real,
     CONSTRAINT fk_packet_id FOREIGN KEY(packet_id) REFERENCES packet(packet_id)
 );
 
