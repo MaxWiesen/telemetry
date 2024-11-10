@@ -11,8 +11,8 @@ services:
       IN_DOCKER: 1
       HOST_IP: 'host.docker.internal'
     volumes:
-      - ../../ingest/mqtt_handler.py:/processors/mqtt_handler.py
-      - ../../../analysis/sql_utils/db_handler.py:/processors/db_handler.py
+      - ../../ingest/mqtt_handler.py:/lap_timer/mqtt_handler.py
+      - ../../../analysis/sql_utils/db_handler.py:/lap_timer/db_handler.py
       - ../../../analysis/sql_utils/DB_description.pkl:/DB_description.pkl
     networks:
       - telemetry_network
