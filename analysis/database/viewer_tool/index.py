@@ -65,7 +65,7 @@ def create_event():
     inputs['packet_start'] = last_packet + 1
     day_id, event_id = DBHandler.insert(table='event', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=inputs, returning=['day_id', 'event_id'])
     with MQTTHandler('flask_app') as mqtt:
-        mqtt.publish('/config/flask', json.dumps({'event_id': event_id}, indent=4))
+        mqtt.publish('config/flask', json.dumps({'event_id': event_id}, indent=4))
     return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=event_id)
 
 
@@ -73,11 +73,11 @@ def create_event():
 def set_event_time():
     if request.json['status'] == 0:
         try:
-            request.json['packet_end'] = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0]
+            request.json['packet_end'] = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
         except IndexError:
             request.json['packet_end'] = 1
         with MQTTHandler('flask_app') as mqtt:
-            mqtt.publish('/config/flask', 'end_event')
+            mqtt.publish('config/flask', 'end_event')
     DBHandler.set_event_status(**request.json, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
     return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=request.json['event_id'])
 
