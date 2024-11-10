@@ -250,7 +250,7 @@ class DBHandler:
                 return send_body(cur)
 
     @classmethod
-    def set_event_status(cls, event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', handler=None, packet_end=None, returning=None):
+    def set_event_status(cls, event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', handler=None, packet_end=None, returning=None, start_time=None):
         """
         Targets an event_id and updates the start or end time, with ability to get columns from the affected row.
 
@@ -267,7 +267,7 @@ class DBHandler:
             handler = cls()
 
         def send_body(cur: psycopg.cursor.Cursor):
-            now = int(time.time() * 1000)
+            now = start_time if start_time else int(time.time() * 1000)
             if status == 1:
                 # Set event status to running
                 q = f'''UPDATE event SET start_time = {now}, status = 1
