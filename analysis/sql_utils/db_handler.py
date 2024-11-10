@@ -7,6 +7,7 @@ import os
 import psycopg
 from psycopg.types.json import Jsonb
 from enum import Enum
+from collections import defaultdict
 
 
 class DBTarget():
@@ -220,6 +221,75 @@ class DBHandler:
                             RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''',
                             list(flat_gen(data)))
                 return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
+    @classmethod
+    def insert_multi_rows(cls, table: str, target=DBTarget.LOCAL, user='analysis', data=None, returning=None):
+        """
+        Targets a table and sends multiple rows of data to database, with ability to get columns from the last row.
+
+        :param table:       str indicating which table the insertion is targeting
+        :param target:      str indicating target database server (according to DB_CONFIG)
+        :param user:        str indicating what user to use to sign in to server
+        :param data:        list of dictionaries dict | request.* holds data to send to database
+        :param returning:   str | list column names to return values for after request is executed
+
+        :return data:       SQL_VALUE | tuple of values in order of returning
+        """
+        if data is None:
+            raise ValueError('No data in payload.')
+
+        table_desc = get_table_column_specs(target=target)[table]
+
+        if returning is None:
+            returning = next(iter(table_desc.keys()))   # Use name of first column of table if not explicitly passed
+        #Loop through to clean data and modify the data variable
+        for i in range(len(data)):
+            data[i] = cls.get_insert_values(table, dict(data[i]), table_desc)
+
+        partition = defaultdict(list)
+    
+        # Group dictionaries by their keys
+        for d in data:
+            # Use a tuple of sorted keys as the group identifier
+            key_tuple = tuple(sorted(d.keys()))
+            partition[key_tuple].append(d)
+        #seperate dictionary entries into a list of lists
+        partition = list(partition.values())
+        #print (partition)
+        def flat_gen(data):
+            # Dumb function to flatten dtype list to conform to psycopg requirements
+            for i in range(len(data)):
+                for col, vals in data[i].items():
+                    if col != 'gps':
+                        yield vals
+                    else:
+                        for val in vals: yield val
+
+        dtype_map = {float: '%s', int: '%s', str: '%s', bool: '%s', list: '%s', Jsonb: '%s', datetime.date: '%s',
+                     'point': 'point(%s, %s)', bytearray: '%s'}
+        
+
+        #This is assuming that all rows have the same format of data. No rows have a random missing value that other rows may have. 
+
+        # If the inputted data is greater than the bounds capacle for inserting, partition the inputted data
+
+           
+        #print (value_list)
+        with DBHandler().connect(target, user) as cnx:
+            with cnx.cursor() as cur:
+                #Here with data keys
+                for j in range(len(partition)):
+                    value_list = ""
+                    for i in range(len(partition[j])):
+                        data_temp = partition[j][i]
+                        single_list = ', '.join([dtype_map[table_desc[col][0]] for col in data_temp.keys()])
+                        value_list += ', '.join(["("+single_list+")"])
+                        value_list += ","
+                    value_list = value_list[:-1]
+                    cur.execute(f'''INSERT INTO {table} ({', '.join(partition[j][0].keys())}) 
+                                VALUES {value_list}
+                                RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''',
+                                list(flat_gen(partition[j])))
+                return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
     @staticmethod
     def set_event_status(event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', packet_end=None, returning=None):
@@ -260,4 +330,12 @@ class DBHandler:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     # get_table_column_specs(False, True, 'LOCAL')
-    print(DBTarget.resolve_target('localhost'))
+    # print(DBTarget.resolve_target('localhost'))
+    q = '''
+        SELECT packet.packet_id as id
+FROM pack
+JOIN packet ON packet.packet_id = pack.packet_id
+LIMIT 1000
+'''
+    h = DBHandler.simple_select(q)
+    print(h)

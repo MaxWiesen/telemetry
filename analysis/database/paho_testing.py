@@ -17,10 +17,13 @@ from multiprocessing import cpu_count
 from pathlib import Path
 from psycopg.types.json import Jsonb
 from typing import Union, Tuple
+
+sys.path.append(str(Path(__file__).parents[2]))
+
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 from analysis.sql_utils.db_handler import get_table_column_specs
 
-sys.path.append(str(Path(__file__).parents[2]))
+
 
 
 class DataTester:
@@ -212,17 +215,6 @@ if __name__ == '__main__':
     mqtt = MQTTHandler('max_test', MQTTTarget.LOCAL)
     mqtt.connect()
     dbtest = DataTester(mqtt)
-<<<<<<< HEAD
-        # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
-
-    # i= 0
-    # while i< 100 :
-    #     dbtest.send_base64_row(1)
-    #     i+= 1
-
-
-=======
     # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, rm_cols=['event_id'], mqtt_handler=mqtt)
     dbtest.single_table_test('packet', 500, .1)
->>>>>>> origin
     mqtt.disconnect()
