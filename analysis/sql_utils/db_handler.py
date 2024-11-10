@@ -77,7 +77,7 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
                                        format_type(a.atttypid, a.atttypmod) as data_type FROM pg_tables t 
                                        JOIN pg_attribute a on a.attrelid::regclass = t.tablename::regclass 
                                        WHERE t.schemaname = 'public' AND a.attnum > 0''',
-                                       handler=handler, target=target, user='electric', handler=handler, return_df=pd.DataFrame,
+                                       target=target, user='electric', handler=handler, return_df=pd.DataFrame,
                                        index_col='tablename')
         data.loc[:, 'data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
         data.loc[data.attname == 'gps', 'attndims'] = 1
@@ -124,10 +124,6 @@ class DBHandler:
 
     def kill_cnx(self):
         del self.cnx
-
-        print(target)
-        return psycopg.connect(dbname=target['dbname'], user=user, password=target['users'][user],
-                               host=target['host'], port=target['port'])
 
     @classmethod
     def simple_select(cls, query: str, target=DBTarget.LOCAL, user='electric', handler=None, return_df=False, **pd_kwargs):
