@@ -98,7 +98,7 @@
             function onConnect() {
                 //Once connected, subscribe
                 console.log("onConnect"); //TODO remove, testing only
-                client.subscribe("event_sync")
+                client.subscribe("config/event_sync")
             }
             //New message callback
             function onMessageArrived(message) {

@@ -21,7 +21,7 @@ class MQTTTarget:
 
 class MQTTHandler:
 
-    def __init__(self, name='python_client', target=None, db_handler=None):
+    def __init__(self, name='python_client', target=None, db_handler=None, on_message=None):
         '''
         :param name:    str         determining name of client to self-report to MQTT broker
         :param target:  MQTTTarget  MQTT target server
@@ -32,7 +32,7 @@ class MQTTHandler:
         self.client.username = name
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
-        self.client.on_message = self.on_message
+        self.client.on_message = on_message if on_message else self.on_message
 
     @staticmethod
     def on_connect(client: mqtt_client.Client, userdata, flags: dict, rc: int):
@@ -79,6 +79,7 @@ class MQTTHandler:
 
     def subscribe(self, topic: str = '#'):
         self.client.subscribe(topic)
+        logging.info(f"Topic: {topic}")
         self.client.loop_forever()
 
     def publish(self, *args, **kwargs):

@@ -1,40 +1,40 @@
 import json
 import os
 import sys
+import time
 from pathlib import Path
 sys.path.append(str(Path(__file__).parents[3]))
 from flask import Flask, render_template, url_for, request, redirect
 import threading
 
 from analysis.sql_utils.db_handler import DBHandler, DBTarget
-from stack.ingest.mqtt_handler import MQTTHandler
+from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 
 app = Flask(__name__)
 config = {}
-event_details = {}
+os.environ["event_details"] = ""
 
-def config_subscribe(msg):
-    print("TESTING HERE") # TODO DEBUG only
-    #Convert msg to json object
-    msg = json.loads(msg.payload.decode())
-    #Ensure all fields present
-    #TODO
-    #Store the return
-    global event_details
-    event_details = msg
+def config_subscribe(client, userdata, msg):
+    print("Callback hit")  # TODO DEBUG only
+    if msg.topic == 'config/event_sync':
+        #Convert msg to json object
+        msg = json.loads(msg.payload.decode())
+        time.sleep(1)
+        #Ensure all fields present
+        #TODO
+        #Store the return
+        os.environ["event_details"] = json.dumps(msg)
+        print("EDTS: " + os.getenv("event_details")) # TODO remove, debug only
 
-with MQTTHandler('flask_app') as mqtt:
-    mqtt.subscribe('event_sync')
-mqtt.on_message = config_subscribe
-
-t1 = threading.Thread(target=mqtt.subscribe, args="event_sync")
-t1.start()
+def mqtt_client_loop(mqtt):
+    # Start the MQTT client loop (this will run forever in the background)
+    mqtt.client.loop_forever()
 
 @app.route('/', methods=['GET'])
 def index():
     #Check to see if an event already exists
-    print("EVENT DETAILS: " + str(event_details)) # TODO DEBUG only
-    if not not event_details:
+    print("EVENT DETAILS: " + os.getenv("event_details")) # TODO DEBUG only
+    if os.getenv("event_details"):
         #If event exists, direct user to event tracker page
         return render_template('event_tracker.html',
                 host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
@@ -134,7 +134,12 @@ def notify_listeners():
 
 
 if __name__ == '__main__':
-    if os.getenv('IN_DOCKER'):
-        app.run(host='0.0.0.0', ssl_context=('./ssl/fullchain.pem', './ssl/privkey.pem'))
-    else:
-        app.run(host='0.0.0.0', debug=True)
+
+    with MQTTHandler('testerieses', target=MQTTTarget.LOCAL, on_message=config_subscribe) as mqtt:
+        mqtt.client.subscribe('config/event_sync')
+        mqtt.client.loop_start()
+
+        if os.getenv('IN_DOCKER'):
+            app.run(host='0.0.0.0', ssl_context=('./ssl/fullchain.pem', './ssl/privkey.pem'))
+        else:
+            app.run(host='0.0.0.0', debug=False)

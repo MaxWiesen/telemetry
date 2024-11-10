@@ -5,7 +5,7 @@ function encodeValues(runStatus, timerTime, turnStatus, accelStatus) {
     //Create json object reflecting current state to be published
     const jsonData = {
         "timerRunning": runStatus,
-        "timerEventTime": (timerTime != null) ? timerTime : 0, //TODO consider revising 0 later
+        "timerEventTime": (timerTime != null) ? timerTime : 0, //TODO consider revising 0 later; Currently results in 60hrs on timer
         "timerInternalTime": watch.getTime(),
         "turnRunning" : turnStatus,
         "accelRunning" : accelStatus
@@ -13,6 +13,6 @@ function encodeValues(runStatus, timerTime, turnStatus, accelStatus) {
 
     //Publish changes to MQTT state topic
     let message = new Paho.MQTT.Message(JSON.stringify(jsonData))
-    message.destinationName = "event_sync"
+    message.destinationName = "config/event_sync"
     client.send(message)
 }
