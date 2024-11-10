@@ -6,7 +6,7 @@ import datetime
 import os
 import psycopg
 from psycopg.types.json import Jsonb
-from enum import Enum
+from pathlib import Path
 
 
 class DBTarget():
@@ -43,7 +43,6 @@ class DBTarget():
             return target['host']
 
 
-
 def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, handler=None):
     """
     Gets description of DB layout using either recent pkl file or request to database. Returns description in form of
@@ -56,8 +55,7 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
     :return db_description: dict represents current layout of DB--see function description for more explanation
     """
     def find_db_description():
-        root_folder = '/analysis' if 'analysis' in os.getcwd() else '/LHR'
-        for root, dirs, files in os.walk(f'{os.getcwd().rsplit(root_folder, 1)[0]}/{root_folder}'):
+        for root, dirs, files in os.walk(Path(os.getcwd()).parents[3]):
             for fol in dirs:
                 if fol == 'DB_description.pkl':
                     os.rmdir(f'{root}/{fol}')
@@ -79,7 +77,8 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
                                        format_type(a.atttypid, a.atttypmod) as data_type FROM pg_tables t 
                                        JOIN pg_attribute a on a.attrelid::regclass = t.tablename::regclass 
                                        WHERE t.schemaname = 'public' AND a.attnum > 0''',
-                                       handler=handler, target=target, user='electric', return_df=pd.DataFrame, index_col='tablename')
+                                       handler=handler, target=target, user='electric', handler=handler, return_df=pd.DataFrame,
+                                       index_col='tablename')
         data.loc[:, 'data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
         data.loc[data.attname == 'gps', 'attndims'] = 1
         data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'double precision': float,
@@ -100,6 +99,9 @@ class DBHandler:
     """
     Class for interfacing with the database
     """
+    def __init__(self, unsafe=False):
+        self.unsafe = unsafe
+        self.cnx = None
 
     def connect(self, target=DBTarget.LOCAL, user='analysis'):
         """
@@ -112,6 +114,17 @@ class DBHandler:
         """
         if isinstance(target, str):
             target = getattr(DBTarget, target)
+        cnx = psycopg.connect(dbname=target['dbname'], user=user, password=target['users'][user], host=target['host'],
+                              port=target['port'])
+        if self.unsafe:
+            logging.warning('\t\tYOU ARE USING AN UNSAFE DBHandler INSTANCE. ENSURE TO DISCONNECT THE CONNECTION!')
+            self.cnx = cnx
+
+        return cnx
+
+    def kill_cnx(self):
+        del self.cnx
+
         print(target)
         return psycopg.connect(dbname=target['dbname'], user=user, password=target['users'][user],
                                host=target['host'], port=target['port'])
@@ -142,6 +155,10 @@ class DBHandler:
             with handler.connect(target, user) as cnx:
                 return pd.io.sql.read_sql(query, cnx, **pd_kwargs)
 
+        if handler.unsafe:
+            with handler.cnx.cursor() as cur:
+                cur.execute(query)
+                return cur.fetchall()
         with handler.connect(target, user) as cnx:
             with cnx.cursor() as cur:
                 cur.execute(query)
@@ -182,7 +199,7 @@ class DBHandler:
         return data
 
     @classmethod
-    def insert(cls, table: str, target=DBTarget.LOCAL, user='analysis', data=None, returning=None):
+    def insert(cls, table: str, target=DBTarget.LOCAL, user='analysis', handler=None, data=None, returning=None):
         """
         Targets a table and sends an individual row of data to database, with ability to get columns from the last row.
 
@@ -197,7 +214,10 @@ class DBHandler:
         if data is None:
             raise ValueError('No data in payload.')
 
-        table_desc = get_table_column_specs(target=target)[table]
+        if handler is None:
+            handler = cls()
+
+        table_desc = get_table_column_specs(target=target, handler=handler)[table]
 
         if returning is None:
             returning = next(iter(table_desc.keys()))   # Use name of first column of table if not explicitly passed
@@ -214,16 +234,23 @@ class DBHandler:
 
         dtype_map = {float: '%s', int: '%s', str: '%s', bool: '%s', list: '%s', Jsonb: '%s', datetime.date: '%s',
                      'point': 'point(%s, %s)', bytearray: '%s'}
-        with DBHandler().connect(target, user) as cnx:
-            with cnx.cursor() as cur:
-                cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
+
+        def send_body(cur: psycopg.cursor.Cursor):
+            cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
                             VALUES ({', '.join([dtype_map[table_desc[col][0]] for col in data.keys()])})
                             RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''',
                             list(flat_gen(data)))
-                return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
+            return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
-    @staticmethod
-    def set_event_status(event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', packet_end=None, returning=None):
+        if handler.unsafe:
+            with handler.cnx.cursor() as cur:
+                return send_body(cur)
+        with handler.connect(target, user) as cnx:
+            with cnx.cursor() as cur:
+                return send_body(cur)
+
+    @classmethod
+    def set_event_status(cls, event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', handler=None, packet_end=None, returning=None):
         """
         Targets an event_id and updates the start or end time, with ability to get columns from the affected row.
 
@@ -231,34 +258,46 @@ class DBHandler:
         :param status:      int indicating event status (0 = completed, 1 = running, 2 = created and awaiting start)
         :param target:      str indicating target database server (according to DB_CONFIG)
         :param user:        str indicating what user to use to sign in to server
-        :param packet_end:  int indicating last packet contained in event
+        :param packet_end:  int indicating last packet contained in event for end event request
         :param returning:   str | list column names to return values for after request is executed
 
         :return data:       SQL_VALUE | tuple of values in order of returning
         """
-        with DBHandler().connect(target, user) as cnx:
+        if handler is None:
+            handler = cls()
+
+        def send_body(cur: psycopg.cursor.Cursor):
+            now = int(time.time() * 1000)
+            if status == 1:
+                # Set event status to running
+                q = f'''UPDATE event SET start_time = {now}, status = 1
+                        WHERE event_id = {event_id}
+                        RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}'''
+            elif status == 0:
+                # Signal end of event and update final packet
+                if packet_end is None:
+                    raise ValueError('Packet end argument was none while ending event.')
+                q = f'''UPDATE event SET end_time = {now}, status = 0, packet_end = {packet_end}
+                        WHERE event_id = {event_id}
+                        RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}'''
+            else:
+                # Used for recording less than 0 status (error) codes
+                q = f'''UPDATE event SET status = {status} WHERE event_id = {event_id}
+                        RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}'''
+            cur.execute(q)
+            return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
+
+        if handler.unsafe:
+            with handler.cnx.cursor() as cur:
+                return send_body(cur)
+        with handler.connect(target, user) as cnx:
             with cnx.cursor() as cur:
-                now = int(time.time() * 1000)
-                if status == 1:
-                    # Set event status to running
-                    cur.execute(f'''UPDATE event SET start_time = {now}, status = 1
-                                    WHERE event_id = {event_id}
-                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
-                elif status == 0:
-                    # Signal end of event and update final packet
-                    if packet_end is None:
-                        raise ValueError('Packet end argument was none while ending event.')
-                    cur.execute(f'''UPDATE event SET end_time = {now}, status = 0, packet_end = {packet_end}
-                                    WHERE event_id = {event_id}
-                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
-                else:
-                    # Used for recording less than 0 status (error) codes
-                    cur.execute(f'''UPDATE event SET status = {status} WHERE event_id = {event_id}
-                                    RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''')
-                return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
+                return send_body(cur)
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    # get_table_column_specs(False, True, 'LOCAL')
-    print(DBTarget.resolve_target('localhost'))
+    handler = DBHandler(unsafe=True)
+    cnx = handler.connect(DBTarget.LOCAL, 'electric')
+    get_table_column_specs(True, True, handler=handler)
+    handler.kill_cnx()
