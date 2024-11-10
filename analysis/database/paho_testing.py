@@ -133,6 +133,9 @@ class DataTester:
                 row[col] = time.time() * 1000
             elif col == 'packet_id':
                 row[col] = next(self.packet_enum)
+            elif col == 'cells_temp':
+                # row[col] = np.random.randint(1, 101, size=(4, 5)).tolist()
+                row[col] = np.random.randint(1, 101, size=140).tolist()
             elif dtype is datetime.datetime:
                 row[col] = datetime.date.today()
             elif dtype is Jsonb:
@@ -217,7 +220,7 @@ if __name__ == '__main__':
     mqtt = MQTTHandler('max_test', MQTTTarget.LOCAL)
     mqtt.connect()
     dbtest = DataTester(mqtt)
-    # dbtest.concurrent_tables_test(['thermal', 'dynamics'], 25, .1, mqtt_handler=mqtt)
-    # dbtest.single_table_test('packet', 500, .1)
-    dbtest.single_table_test('diagnostics', 500, .1)
+    # dbtest.concurrent_tables_test(['packet', 'thermal'], 25, .1, mqtt_handler=mqtt)
+    # dbtest.single_table_test('packet', 50, .1)
+    dbtest.single_table_test('diagnostics', 50, .1, rm_cols = ["current_errors", "latching_faults"])
     mqtt.disconnect()
