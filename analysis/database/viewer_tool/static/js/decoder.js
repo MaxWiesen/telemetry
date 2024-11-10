@@ -17,7 +17,6 @@ function decodeValues(jsonObj) {
             //Set local attributes
             startButton.setAttribute("isRunning", true)
             watch.startAt(jsonObj.timerEventTime);
-            //TODO database push?
         }
     }
 
@@ -27,7 +26,6 @@ function decodeValues(jsonObj) {
             //Update states to match by stopping
             startButton.setAttribute("isRunning", false)
             watch.stopAt(jsonObj.timerInternalTime)
-            //TODO database push?
         }
     }
 
@@ -42,13 +40,6 @@ function decodeValues(jsonObj) {
             //Stop the turn
             watch.turnAt(jsonObj.timerInternalTime)
         } //Else states match, do nothing
-
-        //If the timer is running, enable the button, otherwise disable
-        // if (jsonObj.timerRunning) {
-        //     turnButton.setAttribute("disabled", false)
-        // } else {
-        //     turnButton.setAttribute("disabled", true)
-        // }
     }
 
     function updateAccel() {
@@ -62,12 +53,5 @@ function decodeValues(jsonObj) {
             //Stop the accel
             watch.accelAt(jsonObj.timerInternalTime)
         } //Else states match, do nothing
-
-        //If the timer is running, enable the button, otherwise disable
-        // if (jsonObj.timerRunning) {
-        //     accelButton.setAttribute("disabled", false)
-        // } else {
-        //     accelButton.setAttribute("disabled", true)
-        // }
     }
 }

@@ -4,14 +4,42 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parents[3]))
 from flask import Flask, render_template, url_for, request, redirect
+import threading
 
 from analysis.sql_utils.db_handler import DBHandler, DBTarget
 from stack.ingest.mqtt_handler import MQTTHandler
 
 app = Flask(__name__)
+config = {}
+event_details = {}
+
+def config_subscribe(msg):
+    print("TESTING HERE") # TODO DEBUG only
+    #Convert msg to json object
+    msg = json.loads(msg.payload.decode())
+    #Ensure all fields present
+    #TODO
+    #Store the return
+    global event_details
+    event_details = msg
+
+with MQTTHandler('flask_app') as mqtt:
+    mqtt.subscribe('event_sync')
+mqtt.on_message = config_subscribe
+
+t1 = threading.Thread(target=mqtt.subscribe, args="event_sync")
+t1.start()
 
 @app.route('/', methods=['GET'])
 def index():
+    #Check to see if an event already exists
+    print("EVENT DETAILS: " + str(event_details)) # TODO DEBUG only
+    if not not event_details:
+        #If event exists, direct user to event tracker page
+        return render_template('event_tracker.html',
+                host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
+                event_id = 0) #TODO RESOLVE ZERO
+    #No existing event, normal path
     return render_template('index.html')
 
 
@@ -89,6 +117,20 @@ def vcu_parameters():
 @app.route('/gates/', methods=['POST'])
 def create_gates():
     pass
+
+@app.route('/new_lap/', methods=['POST'])
+def add_new_lap():
+    if 'laps' not in config:
+        config['laps'] = []
+    data = request.form
+    if 'time' in data:
+        config['laps'].append(data['time'])
+        notify_listeners()
+    return json.dumps({'success':True}), 200, {'ContentType':'application/json'}
+def notify_listeners():
+    print(config)
+    with MQTTHandler('flask_app') as mqtt:
+        mqtt.publish('event_sync', json.dumps(config, indent=4))
 
 
 if __name__ == '__main__':
