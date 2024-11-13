@@ -2,8 +2,22 @@
 function decodeValues(jsonObj) {
     console.log("Decoder Triggered\nPayload: " + jsonObj) //TODO remove, DEBUG only
 
-    //Decode string to actual JSON object
-    jsonObj = JSON.parse(jsonObj)
+    //Screen for undefined messages
+    if (jsonObj === undefined) {
+        console.log("Attempted to decode undefined")
+        return
+    }
+
+    //Ensure Argument is Valid JSON object
+    try {
+        //Decode string to actual JSON object
+        jsonObj = JSON.parse(jsonObj)
+    } catch (error) {
+        //Decoding Failed, Not Properly Formatted
+        startButton.setAttribute("tempStore", jsonObj)
+        console.log("Breakaway Error")
+        console.log("Attempt at stringify: " + JSON.stringify(jsonObj))
+    }
 
     //Update page by element
     updateStartButton()
@@ -17,6 +31,11 @@ function decodeValues(jsonObj) {
             //Set local attributes
             startButton.setAttribute("isRunning", true)
             watch.startAt(jsonObj.timerEventTime);
+        } else { //Timer not running, ensure states match
+            if (jsonObj.timerInternalTime !== watch.getTime()) {
+                console.log("Resolving timer") //TODO remove, debug only
+                watch.time = jsonObj.timerInternalTime
+            }
         }
     }
 

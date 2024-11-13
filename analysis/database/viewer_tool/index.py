@@ -38,7 +38,7 @@ def index():
         #If event exists, direct user to event tracker page
         return render_template('event_tracker.html',
                 host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
-                event_id = 0) #TODO RESOLVE ZERO
+                event_id = 0, config_image = os.getenv("event_details")) #TODO RESOLVE ZERO
     #No existing event, normal path
     return render_template('index.html')
 
