@@ -97,10 +97,11 @@ function Stopwatch(elem) {
     }
   };
 
-  this.startAt = function (timeStarted) {
+  this.startAt = function (timeStarted, internalWhenStarted) {
     if (!this.isOn) {
       interval = setInterval(update.bind(this), 10);
-      offset = timeStarted;
+      time = internalWhenStarted
+      offset = timeStarted; //TODO think and test
       this.isOn = true;
     }
   }
@@ -114,7 +115,7 @@ function Stopwatch(elem) {
   };
 
   this.stopAt = function(timeStopped) {
-    if (this.isOn) {
+    if (true) { //TODO revert to this.isOn, testing only
       time = timeStopped
       clearInterval(interval)
       interval = null

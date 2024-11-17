@@ -30,11 +30,13 @@ function decodeValues(jsonObj) {
         if (jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "false")) {
             //Set local attributes
             startButton.setAttribute("isRunning", true)
-            watch.startAt(jsonObj.timerEventTime);
+            watch.startAt(jsonObj.timerEventTime, jsonObj.timerInternalTime);
+            console.log("waffle start at")
         } else { //Timer not running, ensure states match
             if (jsonObj.timerInternalTime !== watch.getTime()) {
                 console.log("Resolving timer") //TODO remove, debug only
-                watch.time = jsonObj.timerInternalTime
+                watch.stopAt(jsonObj.timerInternalTime)
+                console.log("waffle stop at")
             }
         }
     }
