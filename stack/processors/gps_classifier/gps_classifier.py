@@ -68,7 +68,7 @@ class GPSClassifierProcessor:
         DBHandler.insert(table="classifier", data=db_obj, target=DBTarget.LOCAL, user="electric", handler=self.handler)
         self.current_process = None
         
-    def _detect_events(self, points: NDArray, la_threshold: float, t_threshold: float, la_time_window: float, t_time_window: float):
+    def _detect_events(self, points: NDArray, la_threshold: float, t_threshold: float, la_time_window: float, t_time_window: float, check_delay: int):
         """
         Detects for start of linear acceleration or turn events and calls associated functions
         ARGS:
@@ -78,12 +78,17 @@ class GPSClassifierProcessor:
             t_threshold: threshold for the slope of the linear regression of steer voltage to trigger an event
             la_time_window: linear acceleration time window to confirm a linear acceleration event (s)
             t_time_window: turn time window to confirm a turn event (s)
+            check_delay: delay between each event starts (s)
         """
         
         torque_request = points[:, 1]
         steer_v = points[:, 2]
         time = points[:, 3]
         packet = points[:, 4]
+        
+        # Not enough time between event starts
+        if len(self.processes != 0) and time[0] < self.processes[-1].starting_time + check_delay * 1000:
+            return
         
         # Look for high spike in torque request
         if not self.current_process or self.current_process.type != ProcessType.LINEAR_ACCELERATION:
@@ -168,7 +173,7 @@ class GPSClassifierProcessor:
             
             
    
-    def run_thread(self, frequency: int, window_size: int):
+    def run_thread(self, frequency: int, window_size: int, la_threshold: float, t_threshold: float, la_time_window: float, t_time_window: float):
         """Sliding Window"""
         
         while True:
@@ -200,7 +205,7 @@ class GPSClassifierProcessor:
                 self._stop_process(points[:, 3][-1])
                 continue
             
-            self._detect_events(points=points, la_threshold=1, t_threshold=1, la_time_window=10, t_time_window=10)
+            self._detect_events(points=points, la_threshold=la_threshold, t_threshold=t_threshold, la_time_window=la_time_window, t_time_window=t_time_window, check_delay=2)
         
             sleep(1 / frequency)
         
@@ -228,12 +233,21 @@ def run_processor():
         processor = GPSClassifierProcessor(db_handler=handler)
         
         
-        
-        # Processing thread
-        t1 = threading.Thread(target=processor.run_thread, args=(1, 50,))
+        frequency = 1
+        window_size = 50
+        la_threshold=1 
+        t_threshold=1
+        la_time_window=10
+        t_time_window=10
+        t1 = threading.Thread(target=processor.run_thread, args=(frequency, window_size, la_threshold, t_threshold, la_time_window, t_time_window))
         t1.start()
         
-        t2 = threading.Thread(target=processor.process_thread, args=(1, 1, 1, 1))
+        
+        frequency = 1
+        la_threshold = 1
+        t_na_threshold = 1
+        t_h_threshold = 1
+        t2 = threading.Thread(target=processor.process_thread, args=(frequency, la_threshold, t_na_threshold, t_h_threshold))
         t2.start()
         
         mqtt.client.on_message = processor.on_message
