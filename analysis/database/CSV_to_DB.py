@@ -18,14 +18,77 @@ from psycopg.types.json import Jsonb
 sys.path.append(str(Path(__file__).parents[2]))
 
 from analysis.sql_utils.db_handler import get_table_column_specs
-from analysis.sql_utils.db_handler import DBHandler
+from analysis.sql_utils.db_handler import DBHandler, DBTarget
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 
 class csv_to_db():
 
-    def __init__(self, data_csv):
-        self.data_csv = data_csv
-        
+    def __init__(self, data_csv_folder, db_handler = None, DB_target = DBTarget.LOCAL, user = 'electric', MQQT_target = MQTTTarget.LOCAL):
+        self.db_handler = db_handler
+        self.user = user
+        self.DB_target = DB_target
+        self.user = user
+        self.MQTT_target = MQQT_target
+        try:
+            self.data_csv_folder = list(Path.cwd().joinpath("csv_data", data_csv_folder).glob("*.csv"))
+        except FileNotFoundError:
+            logging.warning("NO FOLDER OF CSV FILES WERE SPECIFIED. ENSURE A FOLDER IS SELECTED OR DATA IS IN csv_data")
+            self.data_csv_folder = list(Path.cwd().joinpath("csv_data").glob("*.csv"))
+
+        self.db_handler.connect(target = DB_target, user = user)
+
+    def get_data_csv_folder(self):
+        return [pd.read_csv(self.data_csv_folder[i]) for i in range(len(self.data_csv_folder))]
+
+    def event_seperator(self, threshold = 20):
+        """"
+        The class variable is a directory containing csv files from a certain drive day. The goal of this method is to 
+        partition the folder into continous segments in which the car is running, outputting a list containing dataframes
+        where each dataframe represents a near continouse time period in which the car is running. 
+        """
+        continous_event = []
+        event = [pd.read_csv(self.data_csv_folder[0])]
+        df_current = pd.read_csv(self.data_csv_folder[0])
+        for csv_path in tqdm(range(len(self.data_csv_folder) -1)):
+            #df_current = pd.read_csv(self.data_csv_folder[csv_path])
+            df_forw = pd.read_csv(self.data_csv_folder[csv_path+1])
+
+            #df_current["Year"] = df_current["Year"] + 2000
+            dt = pd.to_datetime({"year" : df_current["Year"] + 2000, 
+                "month" : df_current["Month"], 
+                "day" : df_current["Day"], 
+                "hour" : df_current["Hour"], 
+                "minute" : df_current["Minute"], 
+                "second" : df_current["Seconds"], 
+                "millisecond" : df_current["Milliseconds"]}).astype(int) // 1000000 #gets into ms
+            last_dt_current = dt.to_list()[-1]
+
+            #df_forw["Year"] = df_forw["Year"] + 2000
+            dt = pd.to_datetime({"year" : df_forw["Year"] + 2000, 
+                "month" : df_forw["Month"], 
+                "day" : df_forw["Day"], 
+                "hour" : df_forw["Hour"], 
+                "minute" : df_forw["Minute"], 
+                "second" : df_forw["Seconds"], 
+                "millisecond" : df_forw["Milliseconds"]}).astype(int) // 1000000 #gets into ms
+            first_dt_forw = dt.to_list()[0]
+
+            if (first_dt_forw - last_dt_current < (threshold * 1000)):
+                differences = [df_forw["Time"][i] - df_forw["Time"][i-1] for i in range(1, len(df_forw.index))]
+                df_forw["Time"][0] = df_current["Time"].iloc[-1] + ((first_dt_forw - last_dt_current)//1000) #Find differing times
+                for i in range(1, len(df_forw.index)):
+                    df_forw["Time"][i] = df_forw["Time"][i-1] + differences[i-1]
+                df_current = df_forw
+                event.append(df_forw)
+            else:
+                continous_event.append(pd.concat(event, ignore_index=True))
+                event = [df_forw]
+                df_current = df_forw
+                if (csv_path == len(self.data_csv_folder) - 2):
+                    continous_event.append(pd.concat(event))
+
+        return continous_event
+
 
     def get_Tables(self):
         """
@@ -38,21 +101,21 @@ class csv_to_db():
         return ent
 
         
-    def enumerate_packet_id(self):       
+    def enumerate_packet_id(self, data_csv):       
         """
         Enumerates the packet_id from the last known packet_id. Uses the csv with car data to determine amount of packet_id to add
         """
         try: 
             #last_packet    
-            last_packet = DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1")[0][0]
+            last_packet = DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1", target=DBTarget.LOCAL, user='electric', handler=self.db_handler)[0][0]
         except IndexError:
             last_packet = 1
 
-        df = pd.read_csv(self.data_csv)
+        df = data_csv
         pack_id = list(range(last_packet + 1, last_packet+1+len(df.index)))
         return pack_id
 
-    def dataConvert(self):
+    def dataConvert(self, data_csv):
         """
         Converts data to the csv to a format that can be added into the database
         """
@@ -61,15 +124,8 @@ class csv_to_db():
         for i in ent.keys():
             items.extend(ent.get(i).keys())
         items = list(set(items))
-        #items = [x for x in items if x not in cols]
-
         convert = {}
-        df = pd.read_csv(self.data_csv)
-        #Remove the space in the nan values
-
-        
-        #df["Cell Temps Mean"] = df["Cell Temps Mean"].replace(" nan", None, regex = True)
-        #print (df["Cell Temps Mean"])
+        df = data_csv
         for i in items:
             match i:
 
@@ -150,6 +206,7 @@ class csv_to_db():
             
                 case "time":
                     df["Year"] = df["Year"] + 2000
+
                     dt = pd.to_datetime({"year" : df["Year"], 
                         "month" : df["Month"], 
                         "day" : df["Day"], 
@@ -435,7 +492,7 @@ class csv_to_db():
                     df["Volumetric Flow Rate"] = df["Volumetric Flow Rate"].astype("int16")
                     convert.update({i:df["Volumetric Flow Rate"].to_list()})
                     logging.info(i + ": added")
-        convert.update({"packet_id": self.enumerate_packet_id()})
+        convert.update({"packet_id": self.enumerate_packet_id(data_csv)})
 
         fill = self.get_Tables()
         #loop through the different tables
@@ -451,14 +508,14 @@ class csv_to_db():
         return fill
 
     #Each iteration makes a new connection to the database and sends a singular row at a time
-    def insert_row_from_csv(self, num_rows : int):
+    def insert_row_from_csv(self, data_csv, num_rows : int):
         """
         Adds data into the database. First adds packet table, then subsequent table using DBHandler insert function. Each iteration
         only inputs a singular row to the database, making this program the least efficient
         """
-        db = DBHandler()
-        df = pd.read_csv(self.data_csv)
-        data = self.dataConvert()
+       
+        df = data_csv
+        data = self.dataConvert(data_csv)
         packets = data["packet"]
         #pack_list = []
         #testing with smaller data
@@ -467,12 +524,11 @@ class csv_to_db():
             for j in packets.keys():
                 if (len(packets[j]) != 0):
                     row_dict.update({j : packets[j][i]})
-            db.insert(table="packet", data=row_dict, user = "electric")
+            DBHandler.insert(table="packet", data=row_dict, user = "electric", handler = self.db_handler)
                     #pack_list.append(row_dict)
             logging.info(row_dict)
 
         for i in tqdm(data.keys()):
-            #row_list = []
             if (i not in ["packet", "event", "classifier", "drive_day", "lut_driver", "lut_location", "lut_car", "lut_event_type"]):
                 for j in range(num_rows):
                     row_dict = {}
@@ -482,19 +538,11 @@ class csv_to_db():
                             #row_list.append(row_dict)
                     logging.info(row_dict)
                 
-                    db.insert(table = i, data = row_dict, user="electric")
-    def insert_multi_row_from_csv(self, amt : int):
-        db = DBHandler()
-        df = pd.read_csv(self.data_csv)
-        data = self.dataConvert()
+                    DBHandler.insert(table = i, data = row_dict, user="electric", handler = self.db_handler)
+    def insert_multi_row_from_csv(self, data_csv, amt = 2000):
+        df = data_csv
+        data = self.dataConvert(data_csv)
         packets = data["packet"]
-        
-        #testing with smaller data
-
-        #Partition the csv into different segments to be sent in. Loop through the entire array, update inner loop with 
-        #the range values to access later values in the dataframe. 
-
-        # amt = 2000
         for j in tqdm(range(0, len(df.index), amt)):
             lower = j
             pack_list = []
@@ -511,9 +559,7 @@ class csv_to_db():
                 pack_list.append(row_dict)
 
             #print (pack_list) #list of dictionaries containing the data to be used
-            db.insert_multi_rows(table="packet", data = pack_list, user="electric")
-
-            
+            DBHandler.insert_multi_rows(table="packet", data = pack_list, user="electric", handler = self.db_handler)
             for i in data.keys():
                 row_list = []
                 if (i not in ["packet", "event", "classifier", "drive_day", "lut_driver", "lut_location", "lut_car", "lut_event_type"]):
@@ -523,50 +569,68 @@ class csv_to_db():
                             if (len(data.get(i)[k]) != 0):
                                 row_dict.update({k : data.get(i)[k][j]})
                         row_list.append(row_dict)
-                    db.insert_multi_rows(table = i, data = row_list, user="electric")
-    def publish_row(self):
+                    DBHandler.insert_multi_rows(table = i, data = row_list, user="electric", handler = self.db_handler)
+    def publish_row(self, data_csv):
         table_desc = get_table_column_specs()
-        df = pd.read_csv(self.data_csv)
-        data = self.dataConvert()
-        db = DBHandler()
-        mqtt = MQTTHandler('sam_test', MQTTTarget.LOCAL)
-        mqtt.connect()
+        df = data_csv
+        #df = df.head(100)
+        data = self.dataConvert(data_csv)
+        first_new_time = int(datetime.datetime.timestamp(datetime.datetime.now())*1000)
+        differences = [data["packet"]["time"][i] - data["packet"]["time"][i-1] for i in range(1, len(df.index))]
+        differences.insert(0, 0)
+        data["packet"]["time"][0] = first_new_time
+        for i in range(1, len(df.index)):
+            data["packet"]["time"][i] = data["packet"]["time"][i-1] + differences[i]
 
-        # with open(f'car_configs/version{bytes_data[0]:02}.json', 'r') as file:
-        #     config = json.load(file)['high' if high_freq else 'low']
+        row_dict_list = {}
+        for i in data.keys():
+            row_list = []
+            if (i not in ["event", "classifier", "drive_day", "lut_driver", "lut_location", "lut_car", "lut_event_type"]):
+                for j in range(len(df.index)):  #Test with only 50 for now
+                    row_dict = {}
+                    for k in data.get(i).keys():
+                        if (len(data.get(i)[k]) != 0):
+                            row_dict.update({k : data.get(i)[k][j]})
+                    row_list.append(DBHandler.get_insert_values(table =i, data=row_dict, table_desc=table_desc[i]))
+                row_dict_list.update({i : row_list})
+        #self.mqqt_handler.connect()
+        with MQTTHandler(name='sam_test', target=self.MQTT_target, db_handler=None) as mqtt_handler:
+            mqtt_handler.connect()
+            for i in tqdm(range(len(df.index))):          
+                time.sleep(float(float(differences[i]) / 1000))
+                for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
+                    mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]))
+                if (i % 1500 == 0 and i != 0):
+                    time.sleep(5)                    
+            mqtt_handler.disconnect()
+
         
-        for i in tqdm(range(1, len(df.index))):
-            mqtt.publish()
-            
-
-
-            time.delay((df["Time"][i] - df["Time"][i-1]))
-
-        
-   
-        # table_desc = get_table_column_specs()["packet"]
-        # print (db.get_insert_values("packet", packets, table_desc))
-
 if __name__ == '__main__':
 
-    logging.basicConfig(level=logging.WARNING)
-    #Send a single csv file to the database--------------------------------------------------------------------------------------
-    #insert_row_from_csv("Log__2024_09_28__18_15_17_part1.csv") 
-    # csv = csv_to_db("Log__2024_09_28__18_15_17_part1.csv")         
-    # csv.insert_multi_row_from_csv(2000)
+    logging.basicConfig(level=logging.CRITICAL)
+    # Playback testing ---------------------------------------------------------------------------------------------
+    db = DBHandler(unsafe = True)
+    csv = csv_to_db("10-10-2024 & 10-11-2024 Thursday Night Drive Test", db_handler=db)
+    test = csv.event_seperator(threshold=5)
+    # # test4 = test[0]["Time"][23790]
+    # # test2 = test[0]["Time"][23791]
+    # # test3 = test[0]["Time"][23792]
+    csv.publish_row(test[0])
+    db.kill_cnx()
 
-    #Send a full event to the database-------------------------------------------------------------------------------------------
-    RUN_CSV_DIR = Path.cwd().joinpath("csv_data", "AutoX2")
-    for csv_path in RUN_CSV_DIR.glob("*.csv"):
-        csv = csv_to_db(csv_path)
-        #print (csv_path)
-        csv.insert_multi_row_from_csv(2000)
+    #Add a whole folder --------------------------------------------------------------------------AutoX comp day
+    # db = DBHandler(unsafe=True) # 11 minutes 41 seconds, persistent connection 7 minutes 12 seconds off charger
+    # csv = csv_to_db("2024_10_13__001_AutoXCompDay", db_handler=db)
+    # fold = csv.get_data_csv_folder()
+    # for i in range(len(fold)):
+    #     csv.insert_multi_row_from_csv(fold[i], 2000)
+    # db.kill_cnx()
 
-    # csv = csv_to_db(Path.cwd().joinpath("Log__2024_09_28__18_15_17_part1.csv"))
-    # csv.publish_row()
+    #Testing the single insert method for troubleshooting 
+    # test_one = csv.get_data_csv_folder()[0]
+    # csv.insert_row_from_csv(test_one, 100)
 
 
-#Time testing
-# test = dataConvert("Log__2024_09_28__18_15_17_part1.csv")
-# print (test["packet"]["time"])
+
+    
       

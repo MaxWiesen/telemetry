@@ -33,7 +33,6 @@ class MQTTHandler:
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
         self.client.on_message = self.on_message
-
     @staticmethod
     def on_connect(client: mqtt_client.Client, userdata, flags: dict, rc: int):
         '''
@@ -51,6 +50,12 @@ class MQTTHandler:
         '''
         if rc != 0:
             print(f'Unexpected MQTT disconnection. Return code: {rc}')
+            try:
+                print("Reconnecting...")
+                client.reconnect()
+                print("Reconnected successfully")
+            except Exception as e:
+                print(f"Reconnect failed: {e}.")
 
     def connect(self, ip=None):
         '''
@@ -138,7 +143,7 @@ class MQTTHandler:
             data_dict = json.loads(payload.decode().replace("'", '"'))
         if data_dict['packet_id'] == 4999 and table != 'packet':
             logging.info(f'\t\tDone with {table}')
-        DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=self.handler, data=data_dict)
+        DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=None, data=data_dict)
 
     def _b64_ingest(self, payload: str, high_freq: bool):
         '''
@@ -154,7 +159,7 @@ class MQTTHandler:
         data_dict = self._base64_decode(payload, high_freq)
         data_dict = self.preprocess_payload(data_dict, high_freq)
         db_desc = get_table_column_specs(force=True)
-        for table in ['dynamics', 'controls', 'pack', 'diagnostics', 'thermal']:
+        for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']:
             DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=self.handler,
                              data={col: data_dict[col] for col in db_desc[table] if col in data_dict})
 

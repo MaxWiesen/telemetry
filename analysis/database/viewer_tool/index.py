@@ -37,13 +37,8 @@ def create_event():
     inputs['packet_start'] = last_packet + 1
     day_id, event_id = DBHandler.insert(table='event', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=inputs, returning=['day_id', 'event_id'])
     with MQTTHandler('flask_app') as mqtt:
-<<<<<<< HEAD
-        mqtt.publish('/config/flask', json.dumps({'event_id': event_id}, indent=4))
-    return render_template('event_tracker.html', host_ip="localhost")
-=======
         mqtt.publish('config/flask', json.dumps({'event_id': event_id}, indent=4))
     return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=event_id)
->>>>>>> origin/main
 
 
 @app.route('/set_event_time/', methods=['POST'])

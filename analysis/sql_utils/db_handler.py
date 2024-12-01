@@ -6,12 +6,9 @@ import datetime
 import os
 import psycopg
 from psycopg.types.json import Jsonb
-<<<<<<< HEAD
 from enum import Enum
 from collections import defaultdict
-=======
 from pathlib import Path
->>>>>>> origin/main
 
 
 class DBTarget():
@@ -60,7 +57,8 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
     :return db_description: dict represents current layout of DB--see function description for more explanation
     """
     def find_db_description():
-        for root, dirs, files in os.walk(Path(os.getcwd()).parents[3]):
+        print(str(Path(os.getcwd()).parents[1]))
+        for root, dirs, files in os.walk(Path(os.getcwd()).parents[1]):
             for fol in dirs:
                 if fol == 'DB_description.pkl':
                     os.rmdir(f'{root}/{fol}')
@@ -69,7 +67,7 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
                     return os.path.abspath(os.path.join(root, name))
         return None
 
-    desc_path = '/ingest/DB_description.pkl' if os.getenv('IN_DOCKER') else find_db_description()
+    desc_path = '/ingest/DB_description.pkl' if os.getenv('IN_DOCKER') else "C:/Users/samue/telemetry/analysis/sql_utils/DB_description.pkl"
     force = force or not bool(desc_path)
     desc_path = desc_path or "C:/Users/samue/telemetry/analysis/sql_utils/DB_description.pkl"
 
@@ -242,10 +240,17 @@ class DBHandler:
                             VALUES ({', '.join([dtype_map[table_desc[col][0]] for col in data.keys()])})
                             RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''',
                             list(flat_gen(data)))
-<<<<<<< HEAD
-                return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
+            return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
+
+        if handler.unsafe:
+            with handler.cnx.cursor() as cur:
+                return send_body(cur)
+        with handler.connect(target, user) as cnx:
+            with cnx.cursor() as cur:
+                return send_body(cur)
+            
     @classmethod
-    def insert_multi_rows(cls, table: str, target=DBTarget.LOCAL, user='analysis', data=None, returning=None):
+    def insert_multi_rows(cls, table: str, target=DBTarget.LOCAL, user='analysis',  handler=None, data=None, returning=None):
         """
         Targets a table and sends multiple rows of data to database, with ability to get columns from the last row.
 
@@ -259,6 +264,9 @@ class DBHandler:
         """
         if data is None:
             raise ValueError('No data in payload.')
+        
+        if handler is None:
+            handler = cls()
 
         table_desc = get_table_column_specs(target=target)[table]
 
@@ -290,33 +298,22 @@ class DBHandler:
         dtype_map = {float: '%s', int: '%s', str: '%s', bool: '%s', list: '%s', Jsonb: '%s', datetime.date: '%s',
                      'point': 'point(%s, %s)', bytearray: '%s'}
         
-
-        #This is assuming that all rows have the same format of data. No rows have a random missing value that other rows may have. 
-
-        # If the inputted data is greater than the bounds capacle for inserting, partition the inputted data
-
+        def send_body(cur: psycopg.cursor.Cursor):
+            for j in range(len(partition)):
+                value_list = ""
+                for i in range(len(partition[j])):
+                    data_temp = partition[j][i]
+                    single_list = ', '.join([dtype_map[table_desc[col][0]] for col in data_temp.keys()])
+                    value_list += ', '.join(["("+single_list+")"])
+                    value_list += ","
+                value_list = value_list[:-1]
+                cur.execute(f'''INSERT INTO {table} ({', '.join(partition[j][0].keys())}) 
+                            VALUES {value_list}
+                            RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''',
+                            list(flat_gen(partition[j])))
+            return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
            
         #print (value_list)
-        with DBHandler().connect(target, user) as cnx:
-            with cnx.cursor() as cur:
-                #Here with data keys
-                for j in range(len(partition)):
-                    value_list = ""
-                    for i in range(len(partition[j])):
-                        data_temp = partition[j][i]
-                        single_list = ', '.join([dtype_map[table_desc[col][0]] for col in data_temp.keys()])
-                        value_list += ', '.join(["("+single_list+")"])
-                        value_list += ","
-                    value_list = value_list[:-1]
-                    cur.execute(f'''INSERT INTO {table} ({', '.join(partition[j][0].keys())}) 
-                                VALUES {value_list}
-                                RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''',
-                                list(flat_gen(partition[j])))
-                return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
-=======
-            return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
->>>>>>> origin/main
-
         if handler.unsafe:
             with handler.cnx.cursor() as cur:
                 return send_body(cur)
@@ -372,20 +369,7 @@ class DBHandler:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-<<<<<<< HEAD
-    # get_table_column_specs(False, True, 'LOCAL')
-    # print(DBTarget.resolve_target('localhost'))
-    q = '''
-        SELECT packet.packet_id as id
-FROM pack
-JOIN packet ON packet.packet_id = pack.packet_id
-LIMIT 1000
-'''
-    h = DBHandler.simple_select(q)
-    print(h)
-=======
     handler = DBHandler(unsafe=True)
     cnx = handler.connect(DBTarget.LOCAL, 'electric')
     get_table_column_specs(True, True, handler=handler)
     handler.kill_cnx()
->>>>>>> origin/main
