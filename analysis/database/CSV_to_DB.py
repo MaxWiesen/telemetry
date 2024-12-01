@@ -602,7 +602,9 @@ class csv_to_db():
         #self.mqqt_handler.connect()
     
         self.mqtt_handler.connect()
-        for i in tqdm(range(len(df.index))):          
+        for i in tqdm(range(len(df.index))):
+            # if (not self.mqtt_handler.client.is_connected()):
+            #     self.mqtt_handler.connect()         
             time.sleep(float(float(differences[i]) / 1000))
             for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
                 self.mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]))                   

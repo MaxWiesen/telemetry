@@ -50,12 +50,6 @@ class MQTTHandler:
         '''
         if rc != 0:
             print(f'Unexpected MQTT disconnection. Return code: {rc}')
-            try:
-                print("Reconnecting...")
-                client.reconnect()
-                print("Reconnected successfully")
-            except Exception as e:
-                print(f"Reconnect failed: {e}.")
 
     def connect(self, ip=None):
         '''
