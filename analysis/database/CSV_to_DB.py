@@ -599,9 +599,7 @@ class csv_to_db():
             for i in tqdm(range(len(df.index))):          
                 time.sleep(float(float(differences[i]) / 1000))
                 for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
-                    mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]))
-                if (i % 1500 == 0 and i != 0):
-                    time.sleep(5)                    
+                    mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]))                   
             mqtt_handler.disconnect()
 
         
