@@ -37,6 +37,12 @@ class csv_to_db():
 
         self.db_handler.connect(target = DB_target, user = user)
 
+        try:
+            self.mqtt_handler = MQTTHandler(name='sam_test', target=self.MQTT_target, db_handler=None)
+        except Exception as e:
+            self.mqtt_handler = None
+            logging.warning("mqtt_handler object failed to initialize")
+
     def get_data_csv_folder(self):
         return [pd.read_csv(self.data_csv_folder[i]) for i in range(len(self.data_csv_folder))]
 
@@ -594,13 +600,13 @@ class csv_to_db():
                     row_list.append(DBHandler.get_insert_values(table =i, data=row_dict, table_desc=table_desc[i]))
                 row_dict_list.update({i : row_list})
         #self.mqqt_handler.connect()
-        with MQTTHandler(name='sam_test', target=self.MQTT_target, db_handler=None) as mqtt_handler:
-            mqtt_handler.connect()
-            for i in tqdm(range(len(df.index))):          
-                time.sleep(float(float(differences[i]) / 1000))
-                for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
-                    mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]))                   
-            mqtt_handler.disconnect()
+    
+        self.mqtt_handler.connect()
+        for i in tqdm(range(len(df.index))):          
+            time.sleep(float(float(differences[i]) / 1000))
+            for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
+                self.mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]))                   
+        self.mqtt_handler.disconnect()
 
         
 if __name__ == '__main__':
