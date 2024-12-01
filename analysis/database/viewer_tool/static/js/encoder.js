@@ -1,18 +1,30 @@
 //Encodes information into a .json file and publishes the data to mqtt
-function encodeValues(runStatus, timerTime, turnStatus, accelStatus) {
+function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, accelStatus, publishData, flags) {
     console.log("Encoder Triggered") //TODO remove, debug
+    //NOTE: passing null in means DO NOT UPDATE
+
+    console.log("Config image stores this prior to encode call: " + (config_image == null ? "null" : JSON.stringify(config_image)))
 
     //Create json object reflecting current state to be published
     const jsonData = {
-        "timerRunning": runStatus,
-        "timerEventTime": (timerTime != null) ? timerTime : 0, //TODO consider revising 0 later; Currently results in 60hrs on timer
-        "timerInternalTime": watch.getTime(),
-        "turnRunning" : turnStatus,
-        "accelRunning" : accelStatus
+        "timerRunning": (timerStatus != null) ? timerStatus : config_image.timerRunning,
+        "timerEventTime": updateTimerTime ? Date.now() : config_image.timerEventTime,
+        "timerInternalTime": updateIntTime ? watch.getTime() : config_image.timerInternalTime,
+        "turnRunning" : (turnStatus != null) ? turnStatus : config_image.turnRunning,
+        "turnStamp" : (turnStatus != null) ? watch.getTime() : config_image.turnStamp,
+        "accelRunning" : (accelStatus != null) ? accelStatus : config_image.accelRunning,
+        "accelStamp" : (accelStatus != null) ? watch.getTime() : config_image.accelStamp,
+        "flag" : flags
     }
 
-    //Publish changes to MQTT state topic
-    let message = new Paho.MQTT.Message(JSON.stringify(jsonData))
-    message.destinationName = "config/event_sync"
-    client.send(message)
+    console.log("We just encoded: " + JSON.stringify(jsonData))
+    //Update the cached image
+    config_image = jsonData
+
+    if (publishData) {
+        //Publish changes to MQTT state topic
+        let message = new Paho.MQTT.Message(JSON.stringify(jsonData))
+        message.destinationName = "config/event_sync"
+        client.send(message)
+    }
 }

@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 sys.path.append(str(Path(__file__).parents[3]))
 from flask import Flask, render_template, url_for, request, redirect
-import threading
 
 from analysis.sql_utils.db_handler import DBHandler, DBTarget
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
@@ -32,7 +31,7 @@ def mqtt_client_loop(mqtt):
 
 @app.route('/', methods=['GET'])
 def index():
-    #Check to see if an event already exists
+    #Check to see if an event already exists TODO db handler simple select event id, where status is 1
     print("EVENT DETAILS: " + os.getenv("event_details")) # TODO DEBUG only
     if os.getenv("event_details"):
         #If event exists, direct user to event tracker page

@@ -5,6 +5,8 @@ function decodeValues(jsonObj) {
     //Screen for undefined messages
     if (jsonObj === undefined) {
         console.log("Attempted to decode undefined")
+        //Use encoder to populate the config image
+        encodeValues(false, true, true, false, false, false)
         return
     }
 
@@ -12,11 +14,12 @@ function decodeValues(jsonObj) {
     try {
         //Decode string to actual JSON object
         jsonObj = JSON.parse(jsonObj)
+        //Cache the incoming data
+        config_image = jsonObj
+        console.log("Here's the cache: " + JSON.stringify(config_image))
     } catch (error) {
         //Decoding Failed, Not Properly Formatted
-        startButton.setAttribute("tempStore", jsonObj)
-        console.log("Breakaway Error")
-        console.log("Attempt at stringify: " + JSON.stringify(jsonObj))
+        console.log("Attempt at stringify FAILED: " + JSON.stringify(jsonObj))
     }
 
     //Update page by element
@@ -25,14 +28,32 @@ function decodeValues(jsonObj) {
     updateTurn()
     updateAccel()
 
+    //Check flags
+    if (jsonObj.flag !== undefined) {
+        //End flag
+        if (jsonObj.flag === "END") {
+            console.log("ENDING EVENT METHOD STUB")
+            //TODO when client loses connection
+            //TODO possible cleanup
+            client.end()
+        }
+    }
+
     function updateStartButton() {
         //If timer is running but this object is not, update this object
         if (jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "false")) {
             //Set local attributes
+            startButton.disabled = true
+            stopButton.disabled = false
+            endButton.disabled = true
+            accelButton.disabled = false
+            turnButton.disabled = false
             startButton.setAttribute("isRunning", true)
             watch.startAt(jsonObj.timerEventTime, jsonObj.timerInternalTime);
             console.log("waffle start at")
-        } else { //Timer not running, ensure states match
+        } else if (jsonObj.timerRunning) { //States match and timer running
+            //TODO state catch? reverse
+        } else { //Timer not running
             if (jsonObj.timerInternalTime !== watch.getTime()) {
                 console.log("Resolving timer") //TODO remove, debug only
                 watch.stopAt(jsonObj.timerInternalTime)
@@ -45,21 +66,25 @@ function decodeValues(jsonObj) {
         //If timer is not running but this object is, update object
         if (!jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "true")) {
             //Update states to match by stopping
+            startButton.disabled = false
+            stopButton.disabled = true
+            endButton.disabled = false
+            accelButton.disabled = true
+            turnButton.disabled = true
             startButton.setAttribute("isRunning", false)
             watch.stopAt(jsonObj.timerInternalTime)
         }
     }
 
-    function updateTurn(qualifiedName, value) {
+    function updateTurn() {
         //If turn is running but this object's is not, update local
         if (jsonObj.turnRunning && !watch.isTurning()) {
             //Start the turn
-            watch.turnAt(jsonObj.timerInternalTime)
-
+            watch.turnAt(jsonObj.turnStamp)
         //If turn is not running but this object's is, update local
         } else if (!jsonObj.turnRunning && watch.isTurning()) {
             //Stop the turn
-            watch.turnAt(jsonObj.timerInternalTime)
+            watch.turnAt(jsonObj.turnStamp)
         } //Else states match, do nothing
     }
 
@@ -67,12 +92,12 @@ function decodeValues(jsonObj) {
         //If accel is running but this object's is not, update local
         if (jsonObj.accelRunning && !watch.isAccel()) {
             //Start the accel
-            watch.accelAt(jsonObj.timerInternalTime)
+            watch.accelAt(jsonObj.accelStamp)
 
         //If accel is not running but this object's is, update local
         } else if (!jsonObj.accelRunning && watch.isAccel()) {
             //Stop the accel
-            watch.accelAt(jsonObj.timerInternalTime)
+            watch.accelAt(jsonObj.accelStamp)
         } //Else states match, do nothing
     }
 }

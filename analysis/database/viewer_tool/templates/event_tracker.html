@@ -30,8 +30,9 @@
                     <button type="button" id="stopButton" class="btn-danger btn-lg">STOP</button>
                 </div>
                 <div style="margin-top:10px;">
-                    <button type="button" id="turnButton" class="reset-btn btn-dark btn-lg">Start Turn</button>
-                    <button type="button" id="accelButton" class="reset-btn btn-dark btn-lg">Start Acceleration</button>
+                    <button type="button" id="turnButton" class="reset-btn btn-warning btn-lg">Start Turn</button>
+                    <button type="button" id="accelButton" class="reset-btn btn-warning btn-lg">Start Acceleration</button>
+                    <button type="button" id="endButton" class="btn btn-info btn-lg">End Event</button>
                 </div>
             </div>
         </div>
@@ -73,8 +74,10 @@
             //Create a stop button and set status to not running
             let stopButton = document.getElementById('stopButton');
 
+            //Create turn, accel, and end event buttons
             let turnButton = document.getElementById('turnButton');
-            let accelButton = document.getElementById('accelButton')
+            let accelButton = document.getElementById('accelButton');
+            let endButton = document.getElementById('endButton');
 
             let watch = new Stopwatch(timer, tab);
             let event_id = {{ event_id }}
@@ -87,7 +90,7 @@
             }
 
             //MQTT handling and function mapping
-            let myName = Math.floor(Math.random() * 100).toString()
+            let myName = Math.floor(Math.random() * 1000).toString()
             client = new Paho.MQTT.Client("localhost", 8080, myName); //TODO replace w env var
             console.log("My name: " + myName)
 
@@ -101,6 +104,7 @@
                 //Once connected, subscribe
                 console.log("onConnect"); //TODO remove, testing only
                 client.subscribe("config/event_sync")
+                encodeValues(null, null, null, null, null, true) ///TODO experiment
             }
             //New message callback
             function onMessageArrived(message) {
@@ -109,25 +113,28 @@
             function onConnectionLost() {
                 console.log("CONNECTION LOST") //TODO debug only
             }
-
-            //TODO when client loses connection
+            function onDisconnect() {
+                console.log("DISCONNECT")
+                //TODO when client loses connection
+                //TODO redirect to new page, clear active event
+            }
 
             //Change in start button state detected
             startButton.addEventListener('click', function() {
                 //Make changes to outgoing image
-                encodeValues(true, Date.now())
+                encodeValues(true, true, true, null, null, true)
             })
 
             stopButton.addEventListener('click', function() {
                 //Make changes to outgoing image
-                encodeValues(false, Date.now())
+                encodeValues(false, true, true, null, null, true)
             })
 
             turnButton.addEventListener('click', function() {
                 //Ensure the timer is running, otherwise do nothing
                 if (startButton.getAttribute("isRunning") === "true") {
                     watch.turn()
-                    encodeValues(startButton.getAttribute("isRunning"), null, watch.isTurning(), watch.isAccel())
+                    encodeValues(null, null, null, watch.isTurning(), null, true)
                 }
             })
 
@@ -135,12 +142,18 @@
                 //Ensure the timer is running, otherwise do nothing
                 if (startButton.getAttribute("isRunning") === "true") {
                     watch.accel();
-                    encodeValues(startButton.getAttribute("isRunning"), null, watch.isTurning(), watch.isAccel())
+                    encodeValues(null, null, null, null, watch.isAccel(), true)
+                }
+            })
+
+            endButton.addEventListener('click', function() {
+                if (startButton.getAttribute("isRunning") === "false") {
+                    encodeValues(false, true, true, false, false, true, "END")
                 }
             })
 
             //On initial creation:
-            console.log("I'm going to decode this for the special case")
+            console.log("special case: initial state")
             decodeValues(config_image);
 
         </script>
