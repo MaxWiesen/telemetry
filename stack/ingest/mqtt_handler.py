@@ -137,7 +137,7 @@ class MQTTHandler:
             data_dict = json.loads(payload.decode().replace("'", '"'))
         if data_dict['packet_id'] == 4999 and table != 'packet':
             logging.info(f'\t\tDone with {table}')
-        DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=None, data=data_dict)
+        DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=self.handler, data=data_dict)
 
     def _b64_ingest(self, payload: str, high_freq: bool):
         '''

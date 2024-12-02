@@ -369,7 +369,10 @@ class DBHandler:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    handler = DBHandler(unsafe=True)
-    cnx = handler.connect(DBTarget.LOCAL, 'electric')
-    get_table_column_specs(True, True, handler=handler)
-    handler.kill_cnx()
+    # get_table_column_specs(False, True, 'LOCAL')
+    #print(DBTarget.resolve_target('localhost'))
+    db = DBHandler(unsafe=True)
+    db.connect(target=DBTarget.LOCAL, user = 'electric')
+    DBHandler.insert('packet', user='electric', handler=db, data={'packet_id': 1, 'time': time.time()})
+    db.kill_cnx()
+    
