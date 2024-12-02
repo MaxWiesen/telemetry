@@ -207,7 +207,6 @@ class csv_to_db():
             
                 case "time":
                     df["Year"] = df["Year"] + 2000
-
                     dt = pd.to_datetime({"year" : df["Year"], 
                         "month" : df["Month"], 
                         "day" : df["Day"], 
