@@ -23,19 +23,14 @@ from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 
 class csv_to_db():
 
-    def __init__(self, data_csv_folder, db_handler = None, DB_target = DBTarget.LOCAL, user = 'electric', MQQT_target = MQTTTarget.LOCAL):
+    def __init__(self, data_csv_folder, db_handler = None, MQQT_target = MQTTTarget.LOCAL):
         self.db_handler = db_handler
-        self.user = user
-        self.DB_target = DB_target
-        self.user = user
         self.MQTT_target = MQQT_target
         try:
             self.data_csv_folder = list(Path.cwd().joinpath("csv_data", data_csv_folder).glob("*.csv"))
         except FileNotFoundError:
             logging.warning("NO FOLDER OF CSV FILES WERE SPECIFIED. ENSURE A FOLDER IS SELECTED OR DATA IS IN csv_data")
             self.data_csv_folder = list(Path.cwd().joinpath("csv_data").glob("*.csv"))
-
-        self.db_handler.connect(target = DB_target, user = user)
 
         try:
             self.mqtt_handler = MQTTHandler(name='sam_test', target=self.MQTT_target, db_handler=None)
@@ -603,11 +598,9 @@ class csv_to_db():
     
         self.mqtt_handler.connect()
         for i in tqdm(range(len(df.index))):
-            # if (not self.mqtt_handler.client.is_connected()):
-            #     self.mqtt_handler.connect()         
             time.sleep(float(float(differences[i]) / 1000))
             for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
-                self.mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]))                   
+                self.mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]), qos = 0)                   
         self.mqtt_handler.disconnect()
 
         
@@ -616,6 +609,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.CRITICAL)
     # Playback testing ---------------------------------------------------------------------------------------------
     db = DBHandler(unsafe = True)
+    db.connect(target = DBTarget.LOCAL, user = 'electric')
     csv = csv_to_db("10-10-2024 & 10-11-2024 Thursday Night Drive Test", db_handler=db)
     test = csv.event_seperator(threshold=5)
     # # test4 = test[0]["Time"][23790]
@@ -626,12 +620,17 @@ if __name__ == '__main__':
 
     #Add a whole folder --------------------------------------------------------------------------AutoX comp day
     # db = DBHandler(unsafe=True) # 11 minutes 41 seconds, persistent connection 7 minutes 12 seconds off charger
+    # db.connect(target = DBTarget.LOCAL, user = 'electric')
     # csv = csv_to_db("2024_10_13__001_AutoXCompDay", db_handler=db)
     # fold = csv.get_data_csv_folder()
     # for i in range(len(fold)):
     #     csv.insert_multi_row_from_csv(fold[i], 2000)
     # db.kill_cnx()
 
+    # db = DBHandler(unsafe=True)
+    # db.connect(target = DBTarget.LOCAL, user = 'electric')
+    # last_packet = DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1", target=DBTarget.LOCAL, user='electric', handler=db)[0][0]
+    # print (last_packet)
     #Testing the single insert method for troubleshooting 
     # test_one = csv.get_data_csv_folder()[0]
     # csv.insert_row_from_csv(test_one, 100)
