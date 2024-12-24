@@ -28,7 +28,7 @@ services:
       LOGLEVEL: 'DEBUG'
     volumes:
       - ../../analysis/sql_utils/db_handler.py:/ingest/db_handler.py
-      - ../../analysis/sql_utils/DB_description.pkl:/ingest/DB_description.pkl
+      - ../../analysis/sql_utils/DB_description.pkl:/DB_description.pkl
     networks:
       - telemetry_network
 
