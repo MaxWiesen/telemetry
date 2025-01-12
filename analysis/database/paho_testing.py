@@ -1,6 +1,7 @@
 import os
 import random
 import numpy as np
+import secrets
 from numpy.random import default_rng
 import time
 import datetime
@@ -16,10 +17,11 @@ from multiprocessing import cpu_count
 from pathlib import Path
 from psycopg.types.json import Jsonb
 from typing import Union, Tuple
+
+sys.path.append(str(Path(__file__).parents[2]))
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 from analysis.sql_utils.db_handler import get_table_column_specs, DBHandler
 
-sys.path.append(str(Path(__file__).parents[2]))
 
 
 class DataTester:
@@ -34,7 +36,6 @@ class DataTester:
         """
         self.rng = default_rng(seed)
         self.mqtt = mqtt
-        self.packet_enum = count(1)
 
     @staticmethod
     def get_desc(db=False, tables=None, rm_cols=None, **get_specs):
@@ -108,8 +109,11 @@ class DataTester:
             res = [requests.get('https://baconipsum.com/api/',
                                 params={'type': 'meat-and-filler', 'sentences': kwargs.get('length', 10),
                                         'start-with-lorem': 1}).text[2:-2] for _ in range(size)]
+        elif dtype is bytearray:
+            res = secrets.token_bytes(16)
+            
         else:
-            raise NotImplementedError(f'Data type {dtype} not implemented yet.')
+            logging.warning(f'Data type {dtype} not implemented yet.')
 
         return res[0] if as_scalar else list(res)
 
@@ -124,9 +128,12 @@ class DataTester:
         row = {}
         for col, (dtype, ndims) in table_desc.items():
             if col == 'time':
-                row[col] = time.time()
+                row[col] = time.time() * 1000
             elif col == 'packet_id':
                 row[col] = packet
+            elif col == 'cells_temp':
+                # row[col] = np.random.randint(1, 101, size=(4, 5)).tolist()
+                row[col] = np.random.randint(1, 101, size=140).tolist()
             elif dtype is datetime.datetime:
                 row[col] = datetime.date.today()
             elif dtype is Jsonb:
@@ -166,7 +173,8 @@ class DataTester:
                 logging.info(f'Publishing payload #{i:>3} to {table}: {row}')
             self.mqtt.publish(f'data/{table}', pickle.dumps(row), qos=1)
             time.sleep(delay)
-        self.packet_enum = count(1)
+        self.
+        _enum = count(1)
         return 0
 
     def concurrent_tables_test(self, tables: list, num_rows: int, delay: float, rm_cols=None, **kwargs):
@@ -210,11 +218,8 @@ class DataTester:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    handler = DBHandler(True)
-    handler.connect(user='electric')
-    with MQTTHandler('max_test', MQTTTarget.LOCAL, db_handler=handler) as mqtt:
-        dbtest = DataTester(mqtt)
-        dbtest.single_table_test('packet', 5000, .0001)
-        dbtest.concurrent_tables_test(['thermal', 'dynamics', 'pack'], 5000, .0001)
-    handler.kill_cnx()
-
+    with DBHandler(unsafe=True, target=DBTarget.LOCAL) as handler:
+        with MQTTHandler('paho_test', db_handler=handler) as mqtt:
+            dbtest = DataTester(mqtt)
+            dbtest.single_table_test('packet', 5000, .0001)
+            dbtest.concurrent_tables_test(['thermal', 'dynamics', 'pack'], 5000, .0001)
