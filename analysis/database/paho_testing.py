@@ -20,7 +20,7 @@ from typing import Union, Tuple
 
 sys.path.append(str(Path(__file__).parents[2]))
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
-from analysis.sql_utils.db_handler import get_table_column_specs, DBHandler
+from analysis.sql_utils.db_handler import get_table_column_specs, DBHandler, DBTarget
 
 
 
