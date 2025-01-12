@@ -9,6 +9,8 @@ import os
 import psycopg
 import sys
 import json
+import matplotlib.pyplot as plt
+import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -45,9 +47,9 @@ class csv_to_db():
         """"
         The class variable is a directory containing csv files from a certain drive day. The goal of this method is to 
         partition the folder into continous segments in which the car is running, outputting a list containing dataframes
-        where each dataframe represents a near continouse time period in which the car is running. 
+        where each dataframe represents a near continous time period in which the car is running. 
         """
-        continous_event = []
+        csv_split = []
         event = [pd.read_csv(self.data_csv_folder[0])]
         df_current = pd.read_csv(self.data_csv_folder[0])
         for csv_path in tqdm(range(len(self.data_csv_folder) -1)):
@@ -82,12 +84,44 @@ class csv_to_db():
                 df_current = df_forw
                 event.append(df_forw)
             else:
-                continous_event.append(pd.concat(event, ignore_index=True))
+                csv_split.append(pd.concat(event, ignore_index=True))
                 event = [df_forw]
                 df_current = df_forw
                 if (csv_path == len(self.data_csv_folder) - 2):
-                    continous_event.append(pd.concat(event))
+                    csv_split.append(pd.concat(event))
+        
+        time_diff = [[csv_split[i]["Time"][j] - csv_split[i]["Time"][j-1] for j in range(1, len(csv_split[i]))] for i in range(len(csv_split))]
+        #rapid_speed_changes = [[csv_split[i]]]
+        delays = [[j for j in range(len(time_diff[i])) if time_diff[i][j] >= threshold] for i in range(len(time_diff))]
+        
+        #Find instances of car moving fast/high motor output. Keep a running mean /median and compare with the current value.
+        #Incorporate some future and past values
 
+        def rolling_window(a, window):
+            shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+            strides = a.strides + (a.strides[-1],)
+            return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+        
+        # for i in range(len(csv_split)):
+        #     flw_speed = csv_split[i]["Front Left Wheel Speed"].rolling(10).mean()
+        #     frw_speed = csv_split[i]["Front Right Wheel Speed"].rolling(10).mean()
+        #     blw_speed = csv_split[i]["Back Left Wheel Speed"].rolling(10).mean()
+        #     brw_speed = csv_split[i]["Back Right Wheel Speed"].rolling(10).mean()
+        #     time = csv_split[i]["Time"]
+        #     dflw_dt = rolling_window(np.gradient(flw_speed, time), 5) #Acceleration
+        #     dfrw_dt = rolling_window(np.gradient(frw_speed, time), 5)
+        #     dblw_dt = rolling_window(np.gradient(blw_speed, time), 5)
+        #     dbrw_dt = rolling_window(np.gradient(brw_speed, time), 5)
+        #     for j in range(len(csv_split[i])):
+
+        continous_event = []
+        #Partition into continous event list
+        for i, (df, delay_indices) in enumerate(zip(csv_split, delays)):
+            start_idx = 0
+            for delay_idx in delay_indices:
+                continous_event.append(df.iloc[start_idx:delay_idx])  
+                start_idx = delay_idx 
+            continous_event.append(df.iloc[start_idx:]) 
         return continous_event
 
 
@@ -597,7 +631,7 @@ class csv_to_db():
     
         self.mqtt_handler.connect()
         for i in tqdm(range(len(df.index))):
-            time.sleep(float(float(differences[i]) / 1000))
+            time.sleep(float(float(differences[i]) * 10/ 1000))
             for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
                 self.mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]), qos = 0)                   
         self.mqtt_handler.disconnect()
@@ -611,16 +645,18 @@ if __name__ == '__main__':
     db.connect(target = DBTarget.LOCAL, user = 'electric')
     csv = csv_to_db("10-10-2024 & 10-11-2024 Thursday Night Drive Test", db_handler=db)
     test = csv.event_seperator(threshold=5)
-    # # test4 = test[0]["Time"][23790]
-    # # test2 = test[0]["Time"][23791]
-    # # test3 = test[0]["Time"][23792]
-    csv.publish_row(test[0])
-    db.kill_cnx()
+    # print (len(test))
+    # print (len(test[0]), len(test[1]), len(test[2]))
+    # # # # test4 = test[0]["Time"][23790]
+    # # # # test2 = test[0]["Time"][23791]
+    # # # # test3 = test[0]["Time"][23792]
+    # # csv.publish_row(test[0])
+    # # db.kill_cnx()
 
     #Add a whole folder --------------------------------------------------------------------------AutoX comp day
     # db = DBHandler(unsafe=True) # 11 minutes 41 seconds, persistent connection 7 minutes 12 seconds off charger
     # db.connect(target = DBTarget.LOCAL, user = 'electric')
-    # csv = csv_to_db("2024_10_13__001_AutoXCompDay", db_handler=db)
+    # csv = csv_to_db("2024_10_13__001_AutoXCompDay", db_handler=None)
     # fold = csv.get_data_csv_folder()
     # for i in range(len(fold)):
     #     csv.insert_multi_row_from_csv(fold[i], 2000)
@@ -633,6 +669,11 @@ if __name__ == '__main__':
     #Testing the single insert method for troubleshooting 
     # test_one = csv.get_data_csv_folder()[0]
     # csv.insert_row_from_csv(test_one, 100)
+
+    # csv = csv_to_db("2024_10_13__001_AutoXCompDay", db_handler=None)
+    # fold = csv.get_data_csv_folder()
+    # time_diff = [fold[i]["Time"][j] - fold[i]["Time"][j-1] for i in range(len(fold)) for j in range(1, len(fold[i]))]
+    # print (max(time_diff), min(time_diff))
 
 
 
