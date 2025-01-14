@@ -70,6 +70,7 @@ class GPSClassifierProcessor:
                 "notes": f"{process_to_end.type.name}"
         }
         print("DB OBJ: ", db_obj)
+        #! Will crash if no event
         DBHandler.insert(table="classifier", data=db_obj, target=DBTarget.LOCAL, user="electric", handler=self.handler)
         self.current_process = None
         
@@ -197,7 +198,7 @@ class GPSClassifierProcessor:
             heading = np.asarray(points[:, 0], dtype=np.float64)
             time = np.asarray(points[:, 2], dtype=np.float64)
             
-            if self.current_process.type == ProcessType.LINEAR_ACCELERATION:
+            if self.current_process and self.current_process.type == ProcessType.LINEAR_ACCELERATION:
                 smoothed_normal_accel = np.polyfit(time, normal_accel, 1)
                 smoothed_heading = np.polyfit(time, heading, 1)
                 if smoothed_normal_accel[0] > t_na_threshold or smoothed_heading[0] > t_h_threshold:
@@ -208,7 +209,7 @@ class GPSClassifierProcessor:
                     
 
             
-            if self.current_process.type == ProcessType.TURN:
+            if self.current_process and self.current_process.type == ProcessType.TURN:
                 smoothed_tangential_accel = np.polyfit(time, tangential_accel, 1)
                 if smoothed_tangential_accel[0] > la_threshold:
                     self._stop_process(self.current_process.starting_time)
@@ -281,17 +282,17 @@ def run_processor():
         handler = DBHandler()
         processor = GPSClassifierProcessor(db_handler=handler)
         
-        
+        #! Need to change these values
         frequency = 500
         window_size = 50
         la_threshold = 8
-        t_threshold=0.75
+        t_threshold=0.4
         la_time_window=10
         t_time_window=10
         t1 = threading.Thread(target=processor.run_thread, args=(frequency, window_size, la_threshold, t_threshold, la_time_window, t_time_window))
         t1.start()
         
-        
+        #! Need to change these values
         frequency = 100
         la_threshold = 1
         t_na_threshold = 1
