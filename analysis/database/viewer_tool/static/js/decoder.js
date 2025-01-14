@@ -16,10 +16,10 @@ function decodeValues(jsonObj) {
         jsonObj = JSON.parse(jsonObj)
         //Cache the incoming data
         config_image = jsonObj
-        console.log("Here's the cache: " + JSON.stringify(config_image))
+        console.log("Here's the cache: " + JSON.stringify(config_image)) //TODO debug only, remove
     } catch (error) {
         //Decoding Failed, Not Properly Formatted
-        console.log("Attempt at stringify FAILED: " + JSON.stringify(jsonObj))
+        console.log("Attempt at stringify FAILED: " + JSON.stringify(jsonObj)) //TODO debug only, remove
     }
 
     //Update page by element
@@ -30,12 +30,17 @@ function decodeValues(jsonObj) {
 
     //Check flags
     if (jsonObj.flag !== undefined) {
+        client.end()
         //End flag
         if (jsonObj.flag === "END") {
             console.log("ENDING EVENT METHOD STUB")
-            //TODO when client loses connection
-            //TODO possible cleanup
-            client.end()
+            fetch('/', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'TODO'
+                }
+            })
+            //client.end()
         }
     }
 
@@ -50,14 +55,14 @@ function decodeValues(jsonObj) {
             turnButton.disabled = false
             startButton.setAttribute("isRunning", true)
             watch.startAt(jsonObj.timerEventTime, jsonObj.timerInternalTime);
-            console.log("waffle start at")
+            console.log("waffle start at") //TODO remove, debug only
         } else if (jsonObj.timerRunning) { //States match and timer running
             //TODO state catch? reverse
         } else { //Timer not running
             if (jsonObj.timerInternalTime !== watch.getTime()) {
                 console.log("Resolving timer") //TODO remove, debug only
                 watch.stopAt(jsonObj.timerInternalTime)
-                console.log("waffle stop at")
+                console.log("waffle stop at")  //TODO remove, debug only
             }
         }
     }

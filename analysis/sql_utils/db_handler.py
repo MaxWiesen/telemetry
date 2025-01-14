@@ -269,20 +269,20 @@ class DBHandler:
                 # Set event status to running
                 q = f'''UPDATE event SET start_time = {now}, status = 1
                         WHERE event_id = {event_id}
-                        RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}'''
+                        '''
             elif status == 0:
                 # Signal end of event and update final packet
                 if packet_end is None:
                     raise ValueError('Packet end argument was none while ending event.')
                 q = f'''UPDATE event SET end_time = {now}, status = 0, packet_end = {packet_end}
                         WHERE event_id = {event_id}
-                        RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}'''
+                        '''
             else:
                 # Used for recording less than 0 status (error) codes
-                q = f'''UPDATE event SET status = {status} WHERE event_id = {event_id}
-                        RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}'''
+                q = f'''UPDATE event SET status = {status} WHERE event_id = {event_id}'''
+
             cur.execute(q)
-            return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
+            return None
 
         if handler.unsafe:
             with handler.cnx.cursor() as cur:

@@ -89,7 +89,7 @@
                 host_ip = 'http://{{ host_ip }}'
             }
 
-            //MQTT handling and function mapping
+            //MQTT handling and function mapping TODO revert to production naming (assigned, non-arbitrary)
             let myName = Math.floor(Math.random() * 1000).toString()
             client = new Paho.MQTT.Client("localhost", 8080, myName); //TODO replace w env var
             console.log("My name: " + myName)
@@ -115,6 +115,7 @@
             }
             function onDisconnect() {
                 console.log("DISCONNECT")
+                //encodeValues(null, false, true, null, null, true, null) //TODO remove testing only; Didnt work
                 //TODO when client loses connection
                 //TODO redirect to new page, clear active event
             }
@@ -148,12 +149,30 @@
 
             endButton.addEventListener('click', function() {
                 if (startButton.getAttribute("isRunning") === "false") {
+                    //Send POST request to reset config_image
+                    fetch('/reset_config_image', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            console.log("config_image reset, disconnected");
+                        } else {
+                            console.error("Failed to reset config_image");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error:", error);
+                    });
+                    //Alert all other clients of disconnection, suspension
                     encodeValues(false, true, true, false, false, true, "END")
                 }
             })
 
-            //On initial creation:
-            console.log("special case: initial state")
+            //On initial creation
+            console.log("special case: initial state") //TODO remove, debug only
             decodeValues(config_image);
 
         </script>

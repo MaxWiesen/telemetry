@@ -3,6 +3,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from tqdm import tqdm
 sys.path.append(str(Path(__file__).parents[3]))
 from flask import Flask, render_template, url_for, request, redirect
 
@@ -12,17 +13,42 @@ from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 app = Flask(__name__)
 config = {}
 os.environ["event_details"] = ""
+os.environ["eid"] = "-1"
 
 def config_subscribe(client, userdata, msg):
     print("Callback hit")  # TODO DEBUG only
+
     if msg.topic == 'config/event_sync':
         #Convert msg to json object
         msg = json.loads(msg.payload.decode())
         time.sleep(1)
         #Ensure all fields present
         #TODO
-        #Store the return
-        os.environ["event_details"] = json.dumps(msg)
+        #Check for flags
+        if "flag" in msg:
+            print("Eval: " + str(msg["flag"] == "END"))
+            #TODO tell database event is over
+            # TODO Remove
+            # if request.json['status'] == 0:
+            #    try:
+            #        request.json['packet_end'] = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
+            #    except IndexError:
+            #        request.json['packet_end'] = 1
+            #    with MQTTHandler('flask_app') as mqtt:
+            #        mqtt.publish('config/flask', 'end_event')
+            # DBHandler.set_event_status(**request.json, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
+            # TODO
+
+            # TODO REMOVE, STRICTLY DEBUG
+            #for i in tqdm(range(1, 100)):
+            #    DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', data={'packet_id': i, 'time': int(time.time())})
+
+            last_pack = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
+            DBHandler.set_event_status(int(os.getenv("eid")), 0, packet_end=last_pack, user='electric')
+        else:
+            print("Key 'flag' is missing in the message payload.")
+        #Store return
+        os.environ["event_details"] = "" if ("flag" in msg and str(msg["flag"] == "END")) else json.dumps(msg)
         print("EDTS: " + os.getenv("event_details")) # TODO remove, debug only
 
 def mqtt_client_loop(mqtt):
@@ -33,14 +59,35 @@ def mqtt_client_loop(mqtt):
 def index():
     #Check to see if an event already exists TODO db handler simple select event id, where status is 1
     print("EVENT DETAILS: " + os.getenv("event_details")) # TODO DEBUG only
-    if os.getenv("event_details"):
+    #if os.getenv("event_details"): original check
+    try:
+        os.environ["eid"] = str(DBHandler.simple_select('SELECT event_id FROM event WHERE status = 1 ORDER BY event_id DESC LIMIT 1')[0][0]) #TODO test 1 v 2 zeros to be sure
+
+        #TODO REMOVE
+        #run = True
+        #while run:
+        #    try:
+        #        last_pack = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
+        #        eid = str(DBHandler.simple_select('SELECT event_id FROM event WHERE status = 1 ORDER BY event_id DESC LIMIT 1')[0][0])
+        #        DBHandler.set_event_status(eid, 0, packet_end=last_pack, user='electric')
+        #    except Exception as e:
+        #        print("DONE " + str(e))
+        #TODO
+
+        print("Attempted Select Returned: " + os.getenv("eid"))
+    except Exception as e:
+        print("Database event-running check failed with " + str(e))
+
+    #TODO migrate from eid os env to request structure for all
+
+    if os.getenv("eid") != "-1" or os.getenv("event_details"):
+        return redirect(url_for('create_event'))
         #If event exists, direct user to event tracker page
-        return render_template('event_tracker.html',
-                host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
-                event_id = 0, config_image = os.getenv("event_details")) #TODO RESOLVE ZERO
+        #return render_template('event_tracker.html',
+        #        host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
+        #        event_id = 0, config_image = os.getenv("event_details")) #TODO RESOLVE ZERO
     #No existing event, normal path
     return render_template('index.html')
-
 
 @app.route('/new_drive_day/', methods=['GET'])
 def new_drive_day():
@@ -53,19 +100,26 @@ def new_event():
     return render_template('input_screen.html', day_id=request.form.get('day_id', request.args['day_id']))
 
 
-@app.route('/create_event/', methods=['POST'])
+@app.route('/create_event/', methods=['POST', 'GET'])
 def create_event():
-    inputs = request.form.to_dict()
+    if request.method == 'POST':
+        inputs = request.form.to_dict()
+    else:
+        return render_template('event_tracker.html',
+                host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
+                event_id = 0, config_image = os.getenv("event_details")) #TODO RESOLVE ZERO
     inputs['status'] = 2
     try:
         last_packet = DBHandler.simple_select('SELECT packet_end FROM event WHERE status = 0 ORDER BY event_id DESC LIMIT 1')[0][0]
     except IndexError:
         last_packet = 0
     inputs['packet_start'] = last_packet + 1
-    day_id, event_id = DBHandler.insert(table='event', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=inputs, returning=['day_id', 'event_id'])
+    day_id, event_id = DBHandler.insert(table='event', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL),
+                                        user='electric', data=inputs, returning=['day_id', 'event_id'])
     with MQTTHandler('flask_app') as mqtt:
         mqtt.publish('config/flask', json.dumps({'event_id': event_id}, indent=4))
-    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=event_id)
+    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET',
+                             DBTarget.LOCAL)), event_id=event_id, config_image = os.getenv("event_details"))
 
 
 @app.route('/set_event_time/', methods=['POST'])
@@ -80,6 +134,11 @@ def set_event_time():
     DBHandler.set_event_status(**request.json, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
     return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=request.json['event_id'])
 
+@app.route('/reset_config_image', methods=['POST'])
+def reset_config_image():
+    os.environ["config_image"] = ""
+    print("Validating: " + os.getenv("config_image"))
+    return json.dumps({'success': True}), 200, {'ContentType': 'application/json'}
 
 @app.route('/tune_data', methods=['GET', 'POST'])
 def tune_data():
