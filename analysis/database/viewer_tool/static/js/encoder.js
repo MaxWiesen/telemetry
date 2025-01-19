@@ -1,5 +1,5 @@
 //Encodes information into a .json file and publishes the data to mqtt
-function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, accelStatus, publishData, flags) {
+function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, accelStatus, publishData, endFlag) {
     console.log("Encoder Triggered") //TODO remove, debug
     //NOTE: passing null in means DO NOT UPDATE
 
@@ -14,7 +14,8 @@ function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, a
         "turnStamp" : (turnStatus != null) ? watch.getTime() : config_image.turnStamp,
         "accelRunning" : (accelStatus != null) ? accelStatus : config_image.accelRunning,
         "accelStamp" : (accelStatus != null) ? watch.getTime() : config_image.accelStamp,
-        "flag" : flags
+        "endFlag" : endFlag,
+        "tables" : (config_image != null && config_image.tables != null) ? config_image.tables : makeEmptyTable()
     }
 
     console.log("We just encoded: " + JSON.stringify(jsonData))
@@ -26,5 +27,14 @@ function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, a
         let message = new Paho.MQTT.Message(JSON.stringify(jsonData))
         message.destinationName = "config/event_sync"
         client.send(message)
+    }
+
+    function makeEmptyTable() {
+        let tempTable = {
+            turnStarts: [],
+            turnStops: [],
+            accelStarts: [],
+            accelStops: []
+        }
     }
 }

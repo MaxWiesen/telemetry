@@ -101,7 +101,7 @@ function Stopwatch(elem) {
     if (!this.isOn) {
       interval = setInterval(update.bind(this), 10);
       time = internalWhenStarted
-      offset = timeStarted; //TODO think and test
+      offset = timeStarted;
       this.isOn = true;
     }
   }
@@ -115,13 +115,11 @@ function Stopwatch(elem) {
   };
 
   this.stopAt = function(timeStopped) {
-    if (true) { //TODO revert to this.isOn, testing only
-      time = timeStopped
-      clearInterval(interval)
-      interval = null
-      this.isOn = false
-      update()
-    }
+    time = timeStopped
+    clearInterval(interval)
+    interval = null
+    this.isOn = false
+    update()
   }
 
   let turn = 1;
@@ -138,6 +136,7 @@ function Stopwatch(elem) {
       document.getElementById('turnButton').textContent = 'Start Turn'
       turn++;
       isTurning = false;
+      //config_image.tables.turnStarts.push() //TODO finish here
     } else {
       startTime = document.getElementById('timer').textContent;
       isTurning = true;

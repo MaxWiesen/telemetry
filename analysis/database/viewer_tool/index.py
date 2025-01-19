@@ -21,25 +21,13 @@ def config_subscribe(client, userdata, msg):
     if msg.topic == 'config/event_sync':
         #Convert msg to json object
         msg = json.loads(msg.payload.decode())
-        time.sleep(1)
-        #Ensure all fields present
-        #TODO
+        #TODO safety, Ensure all fields present
         #Check for flags
         if "flag" in msg:
             print("Eval: " + str(msg["flag"] == "END"))
             #TODO tell database event is over
-            # TODO Remove
-            # if request.json['status'] == 0:
-            #    try:
-            #        request.json['packet_end'] = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
-            #    except IndexError:
-            #        request.json['packet_end'] = 1
-            #    with MQTTHandler('flask_app') as mqtt:
-            #        mqtt.publish('config/flask', 'end_event')
-            # DBHandler.set_event_status(**request.json, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
-            # TODO
 
-            # TODO REMOVE, STRICTLY DEBUG
+            # TODO REMOVE, STRICTLY DEBUG (Packet Generation)
             #for i in tqdm(range(1, 100)):
             #    DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', data={'packet_id': i, 'time': int(time.time())})
 
@@ -49,7 +37,7 @@ def config_subscribe(client, userdata, msg):
             print("Key 'flag' is missing in the message payload.")
         #Store return
         os.environ["event_details"] = "" if ("flag" in msg and str(msg["flag"] == "END")) else json.dumps(msg)
-        print("EDTS: " + os.getenv("event_details")) # TODO remove, debug only
+        print("Index Event Details: " + os.getenv("event_details")) # TODO remove, debug only
 
 def mqtt_client_loop(mqtt):
     # Start the MQTT client loop (this will run forever in the background)
@@ -61,20 +49,8 @@ def index():
     print("EVENT DETAILS: " + os.getenv("event_details")) # TODO DEBUG only
     #if os.getenv("event_details"): original check
     try:
-        os.environ["eid"] = str(DBHandler.simple_select('SELECT event_id FROM event WHERE status = 1 ORDER BY event_id DESC LIMIT 1')[0][0]) #TODO test 1 v 2 zeros to be sure
-
-        #TODO REMOVE
-        #run = True
-        #while run:
-        #    try:
-        #        last_pack = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
-        #        eid = str(DBHandler.simple_select('SELECT event_id FROM event WHERE status = 1 ORDER BY event_id DESC LIMIT 1')[0][0])
-        #        DBHandler.set_event_status(eid, 0, packet_end=last_pack, user='electric')
-        #    except Exception as e:
-        #        print("DONE " + str(e))
-        #TODO
-
-        print("Attempted Select Returned: " + os.getenv("eid"))
+        os.environ["eid"] = str(DBHandler.simple_select('SELECT event_id FROM event WHERE status = 1 ORDER BY event_id DESC LIMIT 1')[0][0])
+        print("Attempted Select Returned: " + os.getenv("eid")) #TODO REMOVE, debug only
     except Exception as e:
         print("Database event-running check failed with " + str(e))
 
@@ -82,10 +58,6 @@ def index():
 
     if os.getenv("eid") != "-1" or os.getenv("event_details"):
         return redirect(url_for('create_event'))
-        #If event exists, direct user to event tracker page
-        #return render_template('event_tracker.html',
-        #        host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
-        #        event_id = 0, config_image = os.getenv("event_details")) #TODO RESOLVE ZERO
     #No existing event, normal path
     return render_template('index.html')
 
@@ -134,11 +106,12 @@ def set_event_time():
     DBHandler.set_event_status(**request.json, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
     return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=request.json['event_id'])
 
-@app.route('/reset_config_image', methods=['POST'])
+@app.route('/reset_config_image', methods=['POST', 'GET'])
 def reset_config_image():
-    os.environ["config_image"] = ""
-    print("Validating: " + os.getenv("config_image"))
-    return json.dumps({'success': True}), 200, {'ContentType': 'application/json'}
+    os.environ['event_details'] = ""
+    print("Config image reset. Event has ended.")
+    return redirect(url_for('index'))
+    #return json.dumps({'success': True}), 200, {'ContentType': 'application/json'}
 
 @app.route('/tune_data', methods=['GET', 'POST'])
 def tune_data():

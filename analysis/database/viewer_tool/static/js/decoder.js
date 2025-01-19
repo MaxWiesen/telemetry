@@ -16,7 +16,7 @@ function decodeValues(jsonObj) {
         jsonObj = JSON.parse(jsonObj)
         //Cache the incoming data
         config_image = jsonObj
-        console.log("Here's the cache: " + JSON.stringify(config_image)) //TODO debug only, remove
+        console.log("Cache: " + JSON.stringify(config_image)) //TODO debug only, remove
     } catch (error) {
         //Decoding Failed, Not Properly Formatted
         console.log("Attempt at stringify FAILED: " + JSON.stringify(jsonObj)) //TODO debug only, remove
@@ -28,20 +28,30 @@ function decodeValues(jsonObj) {
     updateTurn()
     updateAccel()
 
-    //Check flags
-    if (jsonObj.flag !== undefined) {
-        client.end()
-        //End flag
-        if (jsonObj.flag === "END") {
-            console.log("ENDING EVENT METHOD STUB")
-            fetch('/', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'TODO'
-                }
-            })
-            //client.end()
-        }
+    //Check for end event flag
+    if (jsonObj.endFlag) {
+        console.log("Flag detected: " + jsonObj.endFlag)
+        //client.end() TODO re-vist, is it needed?
+        //Redirect
+        //Send request to reset config_image AND server side variables
+        fetch('/reset_config_image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: 'redirect' })
+        })
+        .then(response => {
+            if (response.redirected) {
+                window.location.href = response.url
+                console.log("config_image reset, disconnected");
+            } else {
+                console.error("Failed to reset config_image", response.statusText);
+            }
+        })
+        .catch(error => {
+            console.error("Error during fetch: ", error);
+        });
     }
 
     function updateStartButton() {
@@ -55,14 +65,11 @@ function decodeValues(jsonObj) {
             turnButton.disabled = false
             startButton.setAttribute("isRunning", true)
             watch.startAt(jsonObj.timerEventTime, jsonObj.timerInternalTime);
-            console.log("waffle start at") //TODO remove, debug only
         } else if (jsonObj.timerRunning) { //States match and timer running
             //TODO state catch? reverse
         } else { //Timer not running
             if (jsonObj.timerInternalTime !== watch.getTime()) {
-                console.log("Resolving timer") //TODO remove, debug only
                 watch.stopAt(jsonObj.timerInternalTime)
-                console.log("waffle stop at")  //TODO remove, debug only
             }
         }
     }

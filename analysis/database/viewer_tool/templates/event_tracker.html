@@ -69,7 +69,6 @@
             //Create a start button and set status to not running
             let startButton = document.getElementById('startButton');
             startButton.setAttribute("isRunning", false);
-            startButton.setAttribute("tempStore", "n/a") // TODO remove, terminal debug ONLY
 
             //Create a stop button and set status to not running
             let stopButton = document.getElementById('stopButton');
@@ -104,20 +103,18 @@
                 //Once connected, subscribe
                 console.log("onConnect"); //TODO remove, testing only
                 client.subscribe("config/event_sync")
-                encodeValues(null, null, null, null, null, true) ///TODO experiment
+                encodeValues(null, null, null, null, null, true)
             }
             //New message callback
             function onMessageArrived(message) {
                 decodeValues(message.payloadString)
             }
             function onConnectionLost() {
-                console.log("CONNECTION LOST") //TODO debug only
+                console.log("CONNECTION LOST")
             }
             function onDisconnect() {
                 console.log("DISCONNECT")
-                //encodeValues(null, false, true, null, null, true, null) //TODO remove testing only; Didnt work
-                //TODO when client loses connection
-                //TODO redirect to new page, clear active event
+                //TODO when client loses connection, redirect to new page, clear active event? REVISIT
             }
 
             //Change in start button state detected
@@ -149,25 +146,8 @@
 
             endButton.addEventListener('click', function() {
                 if (startButton.getAttribute("isRunning") === "false") {
-                    //Send POST request to reset config_image
-                    fetch('/reset_config_image', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(response => {
-                        if (response.ok) {
-                            console.log("config_image reset, disconnected");
-                        } else {
-                            console.error("Failed to reset config_image");
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Error:", error);
-                    });
                     //Alert all other clients of disconnection, suspension
-                    encodeValues(false, true, true, false, false, true, "END")
+                    encodeValues(false, true, true, false, false, true, true)
                 }
             })
 
