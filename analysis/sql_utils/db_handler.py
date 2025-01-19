@@ -82,7 +82,7 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
                                        index_col='tablename')
         data['data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
         data.loc[data.attname == 'gps', 'attndims'] = 1
-        data.replace({'col': 'data_type'}, DBHandler.pg2py_types, inplace=True)
+        data.replace({'data_type': DBHandler.pg2py_types}, inplace=True)
         table_column_specs = {table: {row.attname: (row.data_type, row.attndims) for _, row in
                                       data.loc[data.index == table].iterrows()} for table in data.index.unique()}
         pickle.dump((now, table_column_specs), open(desc_path, 'wb'))
@@ -225,7 +225,7 @@ class DBHandler:
         # Separate NaNs and log
         nan_vals = [val == 0 or bool(val) for _, val in data.items()]
         nans = {key: val for (key, val), nan in zip(data.items(), nan_vals) if not nan}
-        data = {key: val if key in ['date', 'gps', 'vcu_flags'] or isinstance(val, (list, bytearray)) else DBHandler.pg2py_types[table_desc[key][0]](val)
+        data = {key: val if key in ['date', 'gps', 'vcu_flags'] or isinstance(val, (list, bytearray)) else table_desc[key][0](val)
                      for (key, val), nan in zip(data.items(), nan_vals) if nan}
         if nans:
             logging.warning(f'\t\tFollowing columns had NaN data: {str(nans).replace(": ", " = ")[1:-1]}')
@@ -264,7 +264,7 @@ class DBHandler:
                     for val in vals: yield val
 
         dtype_map = {float: '%s', int: '%s', str: '%s', bool: '%s', list: '%s', Jsonb: '%s', datetime.date: '%s',
-                     'point': 'point(%s, %s)', 'bigint': '%s', bytearray: '%s'}
+                     'point': 'point(%s, %s)', bytearray: '%s'}
 
         def send_body(cur: psycopg.cursor.Cursor):
             cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
@@ -337,7 +337,7 @@ class DBHandler:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     with DBHandler(unsafe=True, target=DBTarget.LOCAL) as handler:
-        get_table_column_specs(force=True, verbose=True, handler=handler)
+        print(get_table_column_specs(force=True, verbose=True, handler=handler)['dynamics'])
 
         # from tqdm import tqdm
         # for i in tqdm(range(1, 1000)):
