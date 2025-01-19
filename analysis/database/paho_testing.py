@@ -222,5 +222,5 @@ if __name__ == '__main__':
     dbtest = DataTester(mqtt)
     # dbtest.concurrent_tables_test(['packet', 'thermal'], 25, .1, mqtt_handler=mqtt)
     # dbtest.single_table_test('packet', 50, .1)
-    dbtest.single_table_test('diagnostics', 50, .1, rm_cols = ["current_errors", "latching_faults"])
+    dbtest.single_table_test('dynamics', 50, .1)
     mqtt.disconnect()
