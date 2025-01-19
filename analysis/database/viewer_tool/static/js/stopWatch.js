@@ -132,11 +132,15 @@ function Stopwatch(elem) {
 
   this.turn = function() {
     if (isTurning) {
-      loadTable(turn, startTime, document.getElementById('timer').textContent, document.getElementById('turn-table'));
+      let tempCurTime = document.getElementById('timer').textContent
+      loadTable(turn, startTime, tempCurTime, document.getElementById('turn-table'));
       document.getElementById('turnButton').textContent = 'Start Turn'
       turn++;
       isTurning = false;
-      //config_image.tables.turnStarts.push() //TODO finish here
+      //Push table row to tables in mqtt (ONLY on client that pushed button, when posted)
+      config_image.tables.turnStarts.push(startTime)
+      config_image.tables.turnStops.push(tempCurTime)
+
     } else {
       startTime = document.getElementById('timer').textContent;
       isTurning = true;
@@ -144,7 +148,13 @@ function Stopwatch(elem) {
     }
   };
 
+  this.loadCustomTurn = function(start, end) {
+    loadTable(turn, start, end, document.getElementById('turn-table'));
+    turn++;
+  }
+
   this.turnAt = function(timeTurned) {
+    console.log("Turn-At triggered") //TODO remove, debug only
     if (isTurning) {
       loadTable(turn, startTime, timeFormatter(timeTurned), document.getElementById('turn-table'));
       document.getElementById('turnButton').textContent = 'Start Turn'
@@ -165,12 +175,21 @@ function Stopwatch(elem) {
     return isAccel
   }
 
+  this.loadCustomAccel = function(start, end) {
+    loadTable(accel, start, end, document.getElementById('accel-table'));
+    accel++;
+  }
+
   this.accel = function() {
     if (isAccel) {
-      loadTable(accel, startAccelTime, document.getElementById('timer').textContent, document.getElementById('accel-table'));
+      let tempCurTime = document.getElementById('timer').textContent
+      loadTable(accel, startAccelTime, tempCurTime, document.getElementById('accel-table'));
       document.getElementById('accelButton').textContent = 'Start Acceleration'
       accel++;
       isAccel = false;
+      //Push table row to tables in mqtt (ONLY on client that pushed button, when posted)
+      config_image.tables.accelStarts.push(startAccelTime)
+      config_image.tables.accelStops.push(tempCurTime)
     } else {
       startAccelTime = document.getElementById('timer').textContent;
       isAccel = true;

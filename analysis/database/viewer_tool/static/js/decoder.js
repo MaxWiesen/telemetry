@@ -113,3 +113,18 @@ function decodeValues(jsonObj) {
         } //Else states match, do nothing
     }
 }
+
+function loadPrevTables() {
+    //NOTE only for use on initial creation
+    if(config_image && config_image.tables) {
+        //Load Turns
+        for (let i = 0; i < config_image.tables.turnStarts.length; i++) {
+            watch.loadCustomTurn(config_image.tables.turnStarts[i], config_image.tables.turnStops[i])
+        }
+        //Load Accels
+        for (let i = 0; i < config_image.tables.accelStarts.length; i++) {
+            watch.loadCustomAccel(config_image.tables.accelStarts[i], config_image.tables.accelStops[i])
+        }
+        console.log("DONE Loading Prev Tables") //TODO remove, debug only
+    }
+}

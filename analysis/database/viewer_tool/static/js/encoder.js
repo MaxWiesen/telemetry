@@ -15,7 +15,7 @@ function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, a
         "accelRunning" : (accelStatus != null) ? accelStatus : config_image.accelRunning,
         "accelStamp" : (accelStatus != null) ? watch.getTime() : config_image.accelStamp,
         "endFlag" : endFlag,
-        "tables" : (config_image != null && config_image.tables != null) ? config_image.tables : makeEmptyTable()
+        "tables" : (config_image && config_image.tables) ? config_image.tables : makeEmptyTable()
     }
 
     console.log("We just encoded: " + JSON.stringify(jsonData))
@@ -30,7 +30,7 @@ function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, a
     }
 
     function makeEmptyTable() {
-        let tempTable = {
+        return {
             turnStarts: [],
             turnStops: [],
             accelStarts: [],
