@@ -16,21 +16,19 @@ os.environ["event_details"] = ""
 os.environ["eid"] = "-1"
 
 def config_subscribe(client, userdata, msg):
-    print("Callback hit")  # TODO DEBUG only
-
     if msg.topic == 'config/event_sync':
         #Convert msg to json object
         msg = json.loads(msg.payload.decode())
         #TODO safety, Ensure all fields present
-        #Check for flags
-        if "flag" in msg:
-            print("Eval: " + str(msg["flag"] == "END"))
-            #TODO tell database event is over
+        #Check for end event flag
+        if "endFlag" in msg:
+            print("End Flag Detected. Closing event on DB.") #TODO remove, debug only
 
-            # TODO REMOVE, STRICTLY DEBUG (Packet Generation)
+            # TODO REMOVE, STRICTLY DEBUG (Packet Generation):
             #for i in tqdm(range(1, 100)):
             #    DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', data={'packet_id': i, 'time': int(time.time())})
 
+            #Close the event in the database
             last_pack = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
             DBHandler.set_event_status(int(os.getenv("eid")), 0, packet_end=last_pack, user='electric')
         else:
