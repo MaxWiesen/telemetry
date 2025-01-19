@@ -173,6 +173,7 @@ class DataTester:
                 logging.info(f'Publishing payload #{i:>3} to {table}: {row}')
             self.mqtt.publish(f'data/{table}', pickle.dumps(row), qos=1)
             time.sleep(delay)
+        self.
         _enum = count(1)
         return 0
 
