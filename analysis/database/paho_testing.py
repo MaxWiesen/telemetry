@@ -1,5 +1,4 @@
 import os
-import base64
 import random
 import numpy as np
 import secrets
@@ -21,7 +20,7 @@ from typing import Union, Tuple
 
 sys.path.append(str(Path(__file__).parents[2]))
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
-from analysis.sql_utils.db_handler import get_table_column_specs
+from analysis.sql_utils.db_handler import get_table_column_specs, DBHandler
 
 
 
@@ -37,7 +36,6 @@ class DataTester:
         """
         self.rng = default_rng(seed)
         self.mqtt = mqtt
-        self.packet_enum = count(1)
 
     @staticmethod
     def get_desc(db=False, tables=None, rm_cols=None, **get_specs):
@@ -119,7 +117,7 @@ class DataTester:
 
         return res[0] if as_scalar else list(res)
 
-    def create_row(self, table_desc: dict):
+    def create_row(self, table_desc: dict, packet: int):
         """
         This function is used to create a row of test data.
 
@@ -132,7 +130,7 @@ class DataTester:
             if col == 'time':
                 row[col] = time.time() * 1000
             elif col == 'packet_id':
-                row[col] = next(self.packet_enum)
+                row[col] = packet
             elif col == 'cells_temp':
                 # row[col] = np.random.randint(1, 101, size=(4, 5)).tolist()
                 row[col] = np.random.randint(1, 101, size=140).tolist()
@@ -168,12 +166,15 @@ class DataTester:
         """
         table_desc = kwargs.pop('table_desc', self.get_desc(tables=[table], rm_cols=rm_cols, **kwargs)[table])
 
+        # for i in range(num_rows) if kwargs.get('verbose') else tqdm(range(num_rows)):
         for i in range(num_rows) if kwargs.get('verbose') else tqdm(range(num_rows)):
-            row = self.create_row(table_desc)
+            row = self.create_row(table_desc, i)
             if kwargs.get('verbose') and (num_rows < 1000 or not i % (num_rows // 100)):
                 logging.info(f'Publishing payload #{i:>3} to {table}: {row}')
-            self.mqtt.publish(f'data/{table}', pickle.dumps(row))
+            self.mqtt.publish(f'data/{table}', pickle.dumps(row), qos=1)
             time.sleep(delay)
+        self.
+        _enum = count(1)
         return 0
 
     def concurrent_tables_test(self, tables: list, num_rows: int, delay: float, rm_cols=None, **kwargs):
@@ -204,7 +205,7 @@ class DataTester:
         return 0
 
     def send_base64_row(self, ver: int, high_freq=True):
-        with open(os.getcwd().split('LHR')[0] + '/LHR/stack/ingest/car_configs/version01.json', 'r') as f:
+        with open(os.getcwd().split('LHR')[0] + f'/LHR/stack/ingest/car_configs/version{ver:02}.json', 'r') as f:
             config = json.load(f)['high' if high_freq else 'low']
         str_to_np = {np_clas.__name__: np_clas for np_clas in getattr(getattr(sys.modules[__name__], 'np'), 'ScalarType')}
         scalar_or_list = lambda val, scalar: val.tolist()[0] if scalar else val.tolist()
@@ -212,15 +213,13 @@ class DataTester:
             dbtest.get_random_data(str_to_np[col_spec['type']], size=(shape := col_spec.get('shape', (1,)))),
             dtype=col_spec['type']) / col_spec.get('multiplier', 1)).flatten().reshape(shape), shape == (1,)).tobytes()
             for col, col_spec in config.items()])
-        self.mqtt.publish('/h' if high_freq else '/l', payload_str)
+        self.mqtt.publish('/h' if high_freq else '/l', payload_str, qos=1)
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    mqtt = MQTTHandler('max_test', MQTTTarget.LOCAL)
-    mqtt.connect()
-    dbtest = DataTester(mqtt)
-    # dbtest.concurrent_tables_test(['packet', 'thermal'], 25, .1, mqtt_handler=mqtt)
-    # dbtest.single_table_test('packet', 50, .1)
-    dbtest.single_table_test('dynamics', 50, .1)
-    mqtt.disconnect()
+    with DBHandler(unsafe=True, target=DBTarget.LOCAL) as handler:
+        with MQTTHandler('paho_test', db_handler=handler) as mqtt:
+            dbtest = DataTester(mqtt)
+            dbtest.single_table_test('packet', 5000, .0001)
+            dbtest.concurrent_tables_test(['thermal', 'dynamics', 'pack'], 5000, .0001)
