@@ -52,7 +52,7 @@ class csv_to_db():
         csv_split = []
         event = [pd.read_csv(self.data_csv_folder[0])]
         df_current = pd.read_csv(self.data_csv_folder[0])
-        for csv_path in tqdm(range(len(self.data_csv_folder) -1)):
+        for csv_path in tqdm(range(10)):
             #df_current = pd.read_csv(self.data_csv_folder[csv_path])
             df_forw = pd.read_csv(self.data_csv_folder[csv_path+1])
 
@@ -631,7 +631,7 @@ class csv_to_db():
     
         self.mqtt_handler.connect()
         for i in tqdm(range(len(df.index))):
-            time.sleep(float(float(differences[i]) * 10/ 1000))
+            time.sleep(float(float(differences[i])/ 1000))
             for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
                 self.mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]), qos = 0)                   
         self.mqtt_handler.disconnect()
@@ -650,8 +650,8 @@ if __name__ == '__main__':
     # # # # test4 = test[0]["Time"][23790]
     # # # # test2 = test[0]["Time"][23791]
     # # # # test3 = test[0]["Time"][23792]
-    # # csv.publish_row(test[0])
-    # # db.kill_cnx()
+    csv.publish_row(test[0])
+    db.kill_cnx()
 
     #Add a whole folder --------------------------------------------------------------------------AutoX comp day
     # db = DBHandler(unsafe=True) # 11 minutes 41 seconds, persistent connection 7 minutes 12 seconds off charger
