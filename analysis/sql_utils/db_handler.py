@@ -5,9 +5,9 @@ import logging
 import datetime
 import os
 import psycopg
-from psycopg.types.json import Jsonb
-from enum import Enum
 from collections import defaultdict
+from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 from pathlib import Path
 
 
@@ -57,8 +57,7 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
     :return db_description: dict represents current layout of DB--see function description for more explanation
     """
     def find_db_description():
-        print(str(Path(os.getcwd()).parents[1]))
-        for root, dirs, files in os.walk(Path(os.getcwd()).parents[1]):
+        for root, dirs, files in os.walk(Path(os.getcwd()).parents[3]):
             for fol in dirs:
                 if fol == 'DB_description.pkl':
                     os.rmdir(f'{root}/{fol}')
@@ -82,9 +81,9 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
                                        WHERE t.schemaname = 'public' AND a.attnum > 0''',
                                        target=target, user='electric', handler=handler, return_df=True,
                                        index_col='tablename')
-        data.replace({'data_type': DBHandler.pg2py_types}, inplace=True)      # Split [] if exists for is_list
+        data['data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
         data.loc[data.attname == 'gps', 'attndims'] = 1
-        data.replace({'col': 'data_type'}, DBHandler.pg2py_types, inplace=True)
+        data.replace({'data_type': DBHandler.pg2py_types}, inplace=True)
         table_column_specs = {table: {row.attname: (row.data_type, row.attndims) for _, row in
                                       data.loc[data.index == table].iterrows()} for table in data.index.unique()}
         pickle.dump((now, table_column_specs), open(desc_path, 'wb'))
@@ -227,8 +226,7 @@ class DBHandler:
         # Separate NaNs and log
         nan_vals = [val == 0 or bool(val) for _, val in data.items()]
         nans = {key: val for (key, val), nan in zip(data.items(), nan_vals) if not nan}
-        print (table_desc)
-        data = {key: val if key in ['date', 'gps', 'vcu_sflags'] or isinstance(val, (list, bytearray)) else DBHandler.pg2py_types[table_desc[key][0]](val)
+        data = {key: val if key in ['date', 'gps', 'vcu_flags'] or isinstance(val, (list, bytearray)) else table_desc[key][0](val)
                      for (key, val), nan in zip(data.items(), nan_vals) if nan}
         if nans:
             logging.warning(f'\t\tFollowing columns had NaN data: {str(nans).replace(": ", " = ")[1:-1]}')
@@ -267,7 +265,7 @@ class DBHandler:
                     for val in vals: yield val
 
         dtype_map = {float: '%s', int: '%s', str: '%s', bool: '%s', list: '%s', Jsonb: '%s', datetime.date: '%s',
-                     'point': 'point(%s, %s)', 'bigint': '%s', bytearray: '%s'}
+                     'point': 'point(%s, %s)', bytearray: '%s'}
 
         def send_body(cur: psycopg.cursor.Cursor):
             cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
@@ -277,12 +275,15 @@ class DBHandler:
             return (cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()) if returning else None
 
         if handler.unsafe:
-            with handler.conn.cursor() as cur:
-                return send_body(cur)
+            if handler.conn_pool_size == 1:
+                with handler.conn.cursor() as cur:
+                    return send_body(cur)
+            with handler.conn.connection() as conn:
+                with conn.cursor() as cur:
+                    return send_body(cur)
         with handler.connect(target, user) as cnx:
             with cnx.cursor() as cur:
                 return send_body(cur)
-            
     @classmethod
     def insert_multi_rows(cls, table: str, target=DBTarget.LOCAL, user='analysis',  handler=None, data=None, returning=None):
         """
@@ -407,10 +408,10 @@ class DBHandler:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    get_table_column_specs(True, True, 'LOCAL')
-    #print(DBTarget.resolve_target('localhost'))
-    # db = DBHandler(unsafe=True)
-    # db.connect(target=DBTarget.LOCAL, user = 'electric')
-    # DBHandler.insert('packet', user='electric', handler=db, data={'packet_id': 1, 'time': time.time()})
-    # db.kill_cnx()
-    
+    with DBHandler(unsafe=True, target=DBTarget.LOCAL) as handler:
+        print(get_table_column_specs(force=True, verbose=True, handler=handler)['dynamics'])
+
+        # from tqdm import tqdm
+        # for i in tqdm(range(1, 1000)):
+        #     DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', handler=handler, data={'packet_id': i, 'time': int(time.time())})
+        # print(DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0])

@@ -11,6 +11,7 @@ import sys
 import json
 import matplotlib.pyplot as plt
 import numpy as np
+import gc
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -97,22 +98,27 @@ class csv_to_db():
         #Find instances of car moving fast/high motor output. Keep a running mean /median and compare with the current value.
         #Incorporate some future and past values
 
-        def rolling_window(a, window):
-            shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
-            strides = a.strides + (a.strides[-1],)
-            return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
-        
-        # for i in range(len(csv_split)):
-        #     flw_speed = csv_split[i]["Front Left Wheel Speed"].rolling(10).mean()
-        #     frw_speed = csv_split[i]["Front Right Wheel Speed"].rolling(10).mean()
-        #     blw_speed = csv_split[i]["Back Left Wheel Speed"].rolling(10).mean()
-        #     brw_speed = csv_split[i]["Back Right Wheel Speed"].rolling(10).mean()
+        #TODO event separation using wheel speeds
+        # def rolling_window(a, window):
+        #     shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+        #     strides = a.strides + (a.strides[-1],)
+        #     return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+        # grad_thresh = 0.5
+        # for i in tqdm(range(len(csv_split))):
+        #     flw_speed = csv_split[i]["Front Left Wheel Speed"].rolling(10, min_periods = 1).mean() #Smoothing
+        #     frw_speed = csv_split[i]["Front Right Wheel Speed"].rolling(10, min_periods = 1).mean()
+        #     blw_speed = csv_split[i]["Back Left Wheel Speed"].rolling(10, min_periods = 1).mean()
+        #     brw_speed = csv_split[i]["Back Right Wheel Speed"].rolling(10, min_periods = 1).mean()
         #     time = csv_split[i]["Time"]
-        #     dflw_dt = rolling_window(np.gradient(flw_speed, time), 5) #Acceleration
-        #     dfrw_dt = rolling_window(np.gradient(frw_speed, time), 5)
-        #     dblw_dt = rolling_window(np.gradient(blw_speed, time), 5)
-        #     dbrw_dt = rolling_window(np.gradient(brw_speed, time), 5)
-        #     for j in range(len(csv_split[i])):
+
+        #     grad_flw = pd.Series(np.gradient(np.gradient(flw_speed, time), time)).rolling(20, min_periods = 1).std()
+        #     grad_frw = pd.Series(np.gradient(np.gradient(frw_speed, time), time)).rolling(20, min_periods = 1).std()            grad_blw = (np.gradient(np.gradient(blw_speed, time), time), 20)
+        #     grad_blw = pd.Series(np.gradient(np.gradient(blw_speed, time), time)).rolling(20, min_periods = 1).std()
+        #     grad_brw = pd.Series(np.gradient(np.gradient(brw_speed, time), time)).rolling(20, min_periods = 1).std()
+
+        #     length = len(flw_speed) if (len(flw_speed) == len(dflw_dt)) else 0
+        #     print (len(grad_flw))
+        #     print (len(flw_speed))
 
         continous_event = []
         #Partition into continous event list
@@ -121,8 +127,20 @@ class csv_to_db():
             for delay_idx in delay_indices:
                 continous_event.append(df.iloc[start_idx:delay_idx])  
                 start_idx = delay_idx 
-            continous_event.append(df.iloc[start_idx:]) 
-        return continous_event
+            continous_event.append(df.iloc[start_idx:])
+        
+        event_storage = Path.cwd().joinpath("event_csv")
+        if not os.path.exists(event_storage): 
+            os.makedirs(event_storage) 
+        for i in range(len(continous_event)):
+            continous_event[i].to_csv(event_storage.joinpath(f'{i}.csv'))
+
+        del continous_event
+        del df_current
+        del df_forw
+
+        gc.collect()
+        #return continous_event
 
 
     def get_Tables(self):
@@ -611,6 +629,7 @@ class csv_to_db():
         data = self.dataConvert(data_csv)
         first_new_time = int(datetime.datetime.timestamp(datetime.datetime.now())*1000)
         differences = [data["packet"]["time"][i] - data["packet"]["time"][i-1] for i in range(1, len(df.index))]
+        #print (min(differences))
         differences.insert(0, 0)
         data["packet"]["time"][0] = first_new_time
         for i in range(1, len(df.index)):
@@ -633,8 +652,21 @@ class csv_to_db():
         for i in tqdm(range(len(df.index))):
             time.sleep(float(float(differences[i])/ 1000))
             for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
-                self.mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]), qos = 0)                   
+                self.mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]), qos =0 )                   
         self.mqtt_handler.disconnect()
+    def checkdiff(self, data_csv):
+        table_desc = get_table_column_specs()
+        df = data_csv
+        #df = df.head(100)
+        data = self.dataConvert(data_csv)
+        first_new_time = int(datetime.datetime.timestamp(datetime.datetime.now())*1000)
+        differences = [data["packet"]["time"][i] - data["packet"]["time"][i-1] for i in range(1, len(df.index))]
+        print (min(differences))
+        differences.insert(0, 0)
+    @staticmethod
+    def stream_data(file_path):
+        for chunk in pd.read_csv(file_path, chunksize=4000):
+            yield chunk.reset_index(drop = True)
 
         
 if __name__ == '__main__':
@@ -644,15 +676,41 @@ if __name__ == '__main__':
     db = DBHandler(unsafe = True)
     db.connect(target = DBTarget.LOCAL, user = 'electric')
     csv = csv_to_db("10-10-2024 & 10-11-2024 Thursday Night Drive Test", db_handler=db)
-    test = csv.event_seperator(threshold=5)
-    # print (len(test))
+    csv.event_seperator(threshold=5) #Saves list to harddrive
+    for chunk in csv.stream_data(Path.cwd().joinpath("event_csv").joinpath("0.csv")):
+        csv.publish_row(chunk)
+        #csv.checkdiff(chunk)
+    #print (len(test))
     # print (len(test[0]), len(test[1]), len(test[2]))
     # # # # test4 = test[0]["Time"][23790]
     # # # # test2 = test[0]["Time"][23791]
     # # # # test3 = test[0]["Time"][23792]
-    csv.publish_row(test[0])
+    #csv.publish_row(test[0])
+    
     db.kill_cnx()
 
+    # TODO event sepearation visualizations
+    # for i in range(len(test)):
+    #     flw = test[i]["Front Left Wheel Speed"]
+    #     time = test[i]["Time"]
+
+    #     plt.figure(figsize=(10, 6))
+    #     plt.plot(time, flw, label="Front Left Wheel Speed", color="blue", linewidth=2)
+
+    #     # Adding labels, title, and legend
+    #     plt.title("Front Left Wheel Speed vs. Time", fontsize=16)
+    #     plt.xlabel("Time (s)", fontsize=14)
+    #     plt.ylabel("Front Left Wheel Speed (units)", fontsize=14)
+    #     plt.legend(fontsize=12)
+    #     plt.grid(True, linestyle='--', alpha=0.7)
+
+    #     # Show the plot
+    #     plt.tight_layout()
+    #     plt.show()
+    #     plt.close()
+
+
+    #Inputting from csv files directly
     #Add a whole folder --------------------------------------------------------------------------AutoX comp day
     # db = DBHandler(unsafe=True) # 11 minutes 41 seconds, persistent connection 7 minutes 12 seconds off charger
     # db.connect(target = DBTarget.LOCAL, user = 'electric')

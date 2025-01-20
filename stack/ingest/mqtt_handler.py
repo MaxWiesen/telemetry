@@ -134,11 +134,14 @@ class MQTTHandler:
         if not os.getenv('EVENT_ID'):
             logging.error(f'\tAttempt made to send data without an event_id cached.')
 
-        logging.debug(f'\tData received. Inserting to Database now...')
-
+        # self.count += 1
+        # if (self.count == 6):
+        #     self.count = 0
+        #     self.packets += 1
+        # logging.debug(f'\tPacket counter: {self.packets}')
         try:
             data_dict = pickle.loads(payload)
-            logging.debug('\tPickle Payload received, likely coming from debug source...')
+            #logging.debug('\tPickle Payload received, likely coming from debug source...')
         except pickle.UnpicklingError:
             data_dict = json.loads(payload.decode().replace("'", '"'))
         # TODO: Add Protobuf ingest

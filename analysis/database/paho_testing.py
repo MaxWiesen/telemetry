@@ -20,7 +20,7 @@ from typing import Union, Tuple
 
 sys.path.append(str(Path(__file__).parents[2]))
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
-from analysis.sql_utils.db_handler import get_table_column_specs, DBHandler
+from analysis.sql_utils.db_handler import get_table_column_specs, DBHandler, DBTarget
 
 
 
@@ -173,7 +173,6 @@ class DataTester:
                 logging.info(f'Publishing payload #{i:>3} to {table}: {row}')
             self.mqtt.publish(f'data/{table}', pickle.dumps(row), qos=1)
             time.sleep(delay)
-        _enum = count(1)
         return 0
 
     def concurrent_tables_test(self, tables: list, num_rows: int, delay: float, rm_cols=None, **kwargs):
