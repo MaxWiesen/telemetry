@@ -57,7 +57,7 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
     :return db_description: dict represents current layout of DB--see function description for more explanation
     """
     def find_db_description():
-        for root, dirs, files in os.walk(Path(os.getcwd()).parents[3]):
+        for root, dirs, files in os.walk(Path(os.getcwd()).parents[1]):
             for fol in dirs:
                 if fol == 'DB_description.pkl':
                     os.rmdir(f'{root}/{fol}')
@@ -349,10 +349,13 @@ class DBHandler:
                             list(flat_gen(partition[j])))
             return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
            
-        #print (value_list)
         if handler.unsafe:
-            with handler.cnx.cursor() as cur:
-                return send_body(cur)
+            if handler.conn_pool_size == 1:
+                with handler.conn.cursor() as cur:
+                    return send_body(cur)
+            with handler.conn.connection() as conn:
+                with conn.cursor() as cur:
+                    return send_body(cur)
         with handler.connect(target, user) as cnx:
             with cnx.cursor() as cur:
                 return send_body(cur)
@@ -412,7 +415,7 @@ if __name__ == '__main__':
     with DBHandler(unsafe=True, target=DBTarget.LOCAL) as handler:
         get_table_column_specs(force=True, verbose=True, handler=handler)
 
-        # from tqdm import tqdm
-        # for i in tqdm(range(1, 1000)):
-        #     DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', handler=handler, data={'packet_id': i, 'time': int(time.time())})
-        # print(DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0])
+        from tqdm import tqdm
+        for i in tqdm(range(1, 1000)):
+            DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', handler=handler, data={'packet_id': i, 'time': int(time.time())})
+        print(DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0])

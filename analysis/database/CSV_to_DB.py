@@ -12,6 +12,7 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import gc
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -26,20 +27,22 @@ from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 
 class csv_to_db():
 
-    def __init__(self, data_csv_folder, db_handler = None, MQQT_target = MQTTTarget.LOCAL):
+    def __init__(self, data_csv_folder, mqtt, db_handler = None, MQQT_target = MQTTTarget.LOCAL):
         self.db_handler = db_handler
         self.MQTT_target = MQQT_target
+        self.mqtt = mqtt
         try:
-            self.data_csv_folder = list(Path.cwd().joinpath("csv_data", data_csv_folder).glob("*.csv"))
+            self.data_csv_folder = sorted(list(Path.cwd().joinpath("csv_data", data_csv_folder).glob("*.csv")))
         except FileNotFoundError:
             logging.warning("NO FOLDER OF CSV FILES WERE SPECIFIED. ENSURE A FOLDER IS SELECTED OR DATA IS IN csv_data")
-            self.data_csv_folder = list(Path.cwd().joinpath("csv_data").glob("*.csv"))
+            self.data_csv_folder = sorted(list(Path.cwd().joinpath("csv_data").glob("*.csv")))
 
-        try:
-            self.mqtt_handler = MQTTHandler(name='sam_test', target=self.MQTT_target, db_handler=None)
-        except Exception as e:
-            self.mqtt_handler = None
-            logging.warning("mqtt_handler object failed to initialize")
+        # try:
+        #     self.mqtt_handler = MQTTHandler(name='sam_test', target=self.MQTT_target, db_handler=self.db_handler)
+        # except Exception as e:
+        #     self.mqtt_handler = None
+        #     logging.critical("mqtt_handler object failed to initialize")
+        #     print (e)
 
     def get_data_csv_folder(self):
         return [pd.read_csv(self.data_csv_folder[i]) for i in range(len(self.data_csv_folder))]
@@ -57,29 +60,29 @@ class csv_to_db():
             #df_current = pd.read_csv(self.data_csv_folder[csv_path])
             df_forw = pd.read_csv(self.data_csv_folder[csv_path+1])
 
+            last_dt_current = df_current.iloc[-1]
             #df_current["Year"] = df_current["Year"] + 2000
-            dt = pd.to_datetime({"year" : df_current["Year"] + 2000, 
-                "month" : df_current["Month"], 
-                "day" : df_current["Day"], 
-                "hour" : df_current["Hour"], 
-                "minute" : df_current["Minute"], 
-                "second" : df_current["Seconds"], 
-                "millisecond" : df_current["Milliseconds"]}).astype(int) // 1000000 #gets into ms
-            last_dt_current = dt.to_list()[-1]
+            dt_current = pd.to_datetime({"year" : [last_dt_current["Year"] + 2000], 
+                "month" : [last_dt_current["Month"]], 
+                "day" : [last_dt_current["Day"]], 
+                "hour" : [last_dt_current["Hour"]], 
+                "minute" : [last_dt_current["Minute"]], 
+                "second" : [last_dt_current["Seconds"]], 
+                "millisecond" : [last_dt_current["Milliseconds"]]}).astype(int) // 1000000 #gets into ms
 
             #df_forw["Year"] = df_forw["Year"] + 2000
-            dt = pd.to_datetime({"year" : df_forw["Year"] + 2000, 
-                "month" : df_forw["Month"], 
-                "day" : df_forw["Day"], 
-                "hour" : df_forw["Hour"], 
-                "minute" : df_forw["Minute"], 
-                "second" : df_forw["Seconds"], 
-                "millisecond" : df_forw["Milliseconds"]}).astype(int) // 1000000 #gets into ms
-            first_dt_forw = dt.to_list()[0]
+            first_dt_forw = df_forw.iloc[0]
+            dt_forw = pd.to_datetime({"year" : [first_dt_forw["Year"] + 2000], 
+                "month" : [first_dt_forw["Month"]], 
+                "day" : [first_dt_forw["Day"]], 
+                "hour" : [first_dt_forw["Hour"]], 
+                "minute" : [first_dt_forw["Minute"]], 
+                "second" : [first_dt_forw["Seconds"]], 
+                "millisecond" : [first_dt_forw["Milliseconds"]]}).astype(int) // 1000000 #gets into ms
 
-            if (first_dt_forw - last_dt_current < (threshold * 1000)):
+            if (dt_forw[0] - dt_current[0] < (threshold * 1000)):
                 differences = [df_forw["Time"][i] - df_forw["Time"][i-1] for i in range(1, len(df_forw.index))]
-                df_forw["Time"][0] = df_current["Time"].iloc[-1] + ((first_dt_forw - last_dt_current)//1000) #Find differing times
+                df_forw["Time"][0] = df_current["Time"].iloc[-1] + ((dt_forw[0] - dt_current[0])//1000) #Find differing times
                 for i in range(1, len(df_forw.index)):
                     df_forw["Time"][i] = df_forw["Time"][i-1] + differences[i-1]
                 df_current = df_forw
@@ -140,8 +143,6 @@ class csv_to_db():
         del df_forw
 
         gc.collect()
-        #return continous_event
-
 
     def get_Tables(self):
         """
@@ -569,8 +570,6 @@ class csv_to_db():
         df = data_csv
         data = self.dataConvert(data_csv)
         packets = data["packet"]
-        #pack_list = []
-        #testing with smaller data
         for i in tqdm(range(num_rows)):
             row_dict = {}
             for j in packets.keys():
@@ -591,7 +590,12 @@ class csv_to_db():
                     logging.info(row_dict)
                 
                     DBHandler.insert(table = i, data = row_dict, user="electric", handler = self.db_handler)
+
     def insert_multi_row_from_csv(self, data_csv, amt = 2000):
+        """
+        Inserts data into the database in larger batches determined by the given amt value. 
+        """
+        
         df = data_csv
         data = self.dataConvert(data_csv)
         packets = data["packet"]
@@ -610,7 +614,7 @@ class csv_to_db():
                         row_dict.update({j : packets[j][i]})
                 pack_list.append(row_dict)
 
-            #print (pack_list) #list of dictionaries containing the data to be used
+            
             DBHandler.insert_multi_rows(table="packet", data = pack_list, user="electric", handler = self.db_handler)
             for i in data.keys():
                 row_list = []
@@ -623,13 +627,15 @@ class csv_to_db():
                         row_list.append(row_dict)
                     DBHandler.insert_multi_rows(table = i, data = row_list, user="electric", handler = self.db_handler)
     def publish_row(self, data_csv):
+        """
+        Takes data from a csv and sends data in rows to mqtt for event playback. Data is formatted as a dictionary and published
+        to mqtt through small batches of rows
+        """
         table_desc = get_table_column_specs()
         df = data_csv
-        #df = df.head(100)
         data = self.dataConvert(data_csv)
         first_new_time = int(datetime.datetime.timestamp(datetime.datetime.now())*1000)
         differences = [data["packet"]["time"][i] - data["packet"]["time"][i-1] for i in range(1, len(df.index))]
-        #print (min(differences))
         differences.insert(0, 0)
         data["packet"]["time"][0] = first_new_time
         for i in range(1, len(df.index)):
@@ -646,15 +652,19 @@ class csv_to_db():
                             row_dict.update({k : data.get(i)[k][j]})
                     row_list.append(DBHandler.get_insert_values(table =i, data=row_dict, table_desc=table_desc[i]))
                 row_dict_list.update({i : row_list})
-        #self.mqqt_handler.connect()
-    
-        self.mqtt_handler.connect()
+
         for i in tqdm(range(len(df.index))):
             time.sleep(float(float(differences[i])/ 1000))
-            for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
-                self.mqtt_handler.publish(f'data/{table}', pickle.dumps(row_dict_list.get(table)[i]), qos =0 )                   
-        self.mqtt_handler.disconnect()
+            if (i % 10 == 0 or len(df.index) - i < 10):
+                for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
+                    end_index = min(i + 10, len(df.index))  # Ensure we don't exceed the length
+                    batch_data = row_dict_list.get(table)[i:end_index]
+                    self.mqtt.publish(f'data/{table}', pickle.dumps(batch_data), qos=0)
+
     def checkdiff(self, data_csv):
+        """
+        Checking time differences for different frequency readings
+        """
         table_desc = get_table_column_specs()
         df = data_csv
         #df = df.head(100)
@@ -662,9 +672,10 @@ class csv_to_db():
         first_new_time = int(datetime.datetime.timestamp(datetime.datetime.now())*1000)
         differences = [data["packet"]["time"][i] - data["packet"]["time"][i-1] for i in range(1, len(df.index))]
         print (min(differences))
+
         differences.insert(0, 0)
-    @staticmethod
-    def stream_data(file_path):
+
+    def stream_data(self, file_path):
         for chunk in pd.read_csv(file_path, chunksize=4000):
             yield chunk.reset_index(drop = True)
 
@@ -673,21 +684,19 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.CRITICAL)
     # Playback testing ---------------------------------------------------------------------------------------------
-    db = DBHandler(unsafe = True)
-    db.connect(target = DBTarget.LOCAL, user = 'electric')
-    csv = csv_to_db("10-10-2024 & 10-11-2024 Thursday Night Drive Test", db_handler=db)
-    csv.event_seperator(threshold=5) #Saves list to harddrive
-    for chunk in csv.stream_data(Path.cwd().joinpath("event_csv").joinpath("0.csv")):
-        csv.publish_row(chunk)
-        #csv.checkdiff(chunk)
-    #print (len(test))
-    # print (len(test[0]), len(test[1]), len(test[2]))
-    # # # # test4 = test[0]["Time"][23790]
-    # # # # test2 = test[0]["Time"][23791]
-    # # # # test3 = test[0]["Time"][23792]
-    #csv.publish_row(test[0])
-    
-    db.kill_cnx()
+    with DBHandler(unsafe=True, target=DBTarget.LOCAL) as db:
+        with MQTTHandler(name ='event_playback_test', target = MQTTTarget.LOCAL, db_handler=db) as mqtt:
+            mqtt.connect()
+            db.connect(target = DBTarget.LOCAL, user = 'electric')
+            csv = csv_to_db("10-10-2024 & 10-11-2024 Thursday Night Drive Test", db_handler=db, mqtt=mqtt)
+            csv.event_seperator(threshold=5) #Saves list to harddrive
+            for chunk in csv.stream_data(file_path=Path.cwd().joinpath("event_csv").joinpath("0.csv")):
+                csv.publish_row(chunk)
+            
+            db.kill_cnx()
+            mqtt.disconnect()
+            shutil.rmtree(Path.cwd().joinpath("event_csv"))
+
 
     # TODO event sepearation visualizations
     # for i in range(len(test)):
@@ -708,30 +717,6 @@ if __name__ == '__main__':
     #     plt.tight_layout()
     #     plt.show()
     #     plt.close()
-
-
-    #Inputting from csv files directly
-    #Add a whole folder --------------------------------------------------------------------------AutoX comp day
-    # db = DBHandler(unsafe=True) # 11 minutes 41 seconds, persistent connection 7 minutes 12 seconds off charger
-    # db.connect(target = DBTarget.LOCAL, user = 'electric')
-    # csv = csv_to_db("2024_10_13__001_AutoXCompDay", db_handler=None)
-    # fold = csv.get_data_csv_folder()
-    # for i in range(len(fold)):
-    #     csv.insert_multi_row_from_csv(fold[i], 2000)
-    # db.kill_cnx()
-
-    # db = DBHandler(unsafe=True)
-    # db.connect(target = DBTarget.LOCAL, user = 'electric')
-    # last_packet = DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1", target=DBTarget.LOCAL, user='electric', handler=db)[0][0]
-    # print (last_packet)
-    #Testing the single insert method for troubleshooting 
-    # test_one = csv.get_data_csv_folder()[0]
-    # csv.insert_row_from_csv(test_one, 100)
-
-    # csv = csv_to_db("2024_10_13__001_AutoXCompDay", db_handler=None)
-    # fold = csv.get_data_csv_folder()
-    # time_diff = [fold[i]["Time"][j] - fold[i]["Time"][j-1] for i in range(len(fold)) for j in range(1, len(fold[i]))]
-    # print (max(time_diff), min(time_diff))
 
 
 
