@@ -2,14 +2,11 @@ import json
 import os
 import logging
 from time import sleep
-import time
 import pandas as pd
 import numpy as np
 from paho.mqtt import client as mqtt_client
 import threading
-import math
 from psycopg import logger
-import requests
 from enum import Enum
 from numpy.typing import NDArray
 import warnings
@@ -26,18 +23,65 @@ else:
 
 # Linear acceleration, turns
 
+#! Debug
+times = []
+events = []
+
 class ProcessType(Enum):
     LINEAR_ACCELERATION = 0
     TURN = 1
     
 
 class Event:    
-    def __init__(self, type: ProcessType, starting_time: int, starting_heading: float):
+    def __init__(self, type: ProcessType, starting_time: int, starting_heading: float, event_id: int):
         self.type: ProcessType = type
         self.starting_time: int = starting_time
         
         self.starting_heading: float | None = starting_heading
         self.max_speed_time: int | None = None
+        
+        self.event_id = event_id
+    
+    def _stop_event(self, time: int):
+        """
+        Kills any ongoing process and adds data to classifier table
+        ARGS:
+            time: the end time of the event
+        """
+        
+        if self.type == ProcessType.LINEAR_ACCELERATION:
+            if self.max_speed_time: time = min(time, self.max_speed_time)        
+            
+        if abs(time - self.starting_time) < 1000: #1 second
+            return
+        
+        db_obj = {
+                "event_id": self.event_id,
+                "type": "trajectory",
+                "start_time": self.starting_time.astype(int),
+                "end_time": time,
+                "notes": f"{self.type.name}"
+        }
+        print("DB OBJ: ", db_obj)
+        #! Will crash if no event
+        # DBHandler.insert(table="classifier", data=db_obj, target=DBTarget.LOCAL, user="electric", handler=self.handler)
+        
+        times.append(self.starting_time)
+        events.append(0)
+        times.append(self.starting_time)
+        events.append(1 if self.type == ProcessType.LINEAR_ACCELERATION else -1)
+        
+        # print(times)
+        # print(events)
+        
+        #! DEBUG
+        times.append(time)
+        events.append(1 if self.type == ProcessType.LINEAR_ACCELERATION else -1)       
+        times.append(time)
+        events.append(0)
+        
+        print(times)
+        print(events)
         
         
 class Process:
@@ -60,66 +104,21 @@ class GPSClassifierProcessor:
         
         self.current_process: Process | None = None
         self.processes: list[Process] = []
-        self.started_events: list[Event] = []
+        self.started_event: Event = None
         
-        #! Debug
-        self.times = []
-        self.events = []
+        self.min_time = 0
    
     def _start_event(self, time: int, heading:int, type: ProcessType):
         # Stop any previous process
-        if len(self.started_events) != 0 and self.started_events[0].type != type:
-            self._stop_event(time)
+        if self.started_event and self.started_event.type != type:
+            self.started_event._stop_event(time)
+            self.started_event = None
         # If previous process is already the same, do nothing
-        elif len(self.started_events) != 0 and self.started_events[0].type == type:
+        elif self.started_event and self.started_event.type == type:
             return
         
-        self.started_events.append(Event(type=type, starting_time=time, starting_heading=heading))
+        self.started_event = Event(type=type, starting_time=time, starting_heading=heading, event_id=self.event_id)
         
-        self.times.append(time)
-        self.events.append(0)
-        self.times.append(time)
-        self.events.append(1 if type == ProcessType.LINEAR_ACCELERATION else -1)
-        
-        print(self.times)
-        print(self.events)
-        
-        
-    def _stop_event(self, time: int):
-        """
-        Kills any ongoing process and adds data to classifier table
-        ARGS:
-            time: the end time of the event
-        """
-        if len(self.started_events) == 0:
-            return
-        
-        process_to_end = self.started_events.pop(0)
-        
-        if time - process_to_end.starting_time < 3000: return
-        
-        if process_to_end.type == ProcessType.LINEAR_ACCELERATION:
-            if process_to_end.max_speed_time: time = min(time, process_to_end.max_speed_time)        
-        
-        db_obj = {
-                "event_id": self.event_id,
-                "type": "trajectory",
-                "start_time": process_to_end.starting_time.astype(int),
-                "end_time": time,
-                "notes": f"{process_to_end.type.name}"
-        }
-        print("DB OBJ: ", db_obj)
-        #! Will crash if no event
-        # DBHandler.insert(table="classifier", data=db_obj, target=DBTarget.LOCAL, user="electric", handler=self.handler)
-        
-        #! DEBUG
-        self.times.append(time)
-        self.events.append(1 if process_to_end.type == ProcessType.LINEAR_ACCELERATION else -1)       
-        self.times.append(time)
-        self.events.append(0)
-        
-        print(self.times)
-        print(self.events)
         
     def _detect_events(self, points: NDArray, la_threshold: float, t_threshold: float, la_time_window: float, t_time_window: float, check_delay: int):
         """
@@ -186,12 +185,15 @@ class GPSClassifierProcessor:
             t_h_threshold: threshold for heading
         """
         
-        while True:
+        while True:            
             if len(self.processes) == 0:
                 sleep(1 / frequency)
                 continue
             
             current_process = self.processes.pop(0)
+            
+            if current_process.starting_time < self.min_time:
+                continue
             
             points: NDArray = []
             # logging.info(f"LOADED PROCESS {current_process.type} STARTING AT {current_process.starting_time}")
@@ -224,7 +226,6 @@ class GPSClassifierProcessor:
             heading = np.asarray(points[:, 0], dtype=np.float64)
             time = np.asarray(points[:, 2], dtype=np.float64)
             
-            
             if current_process and current_process.type == ProcessType.LINEAR_ACCELERATION:
                 smoothed_tangential_accel = np.polyfit(time, tangential_accel, 1)
                 
@@ -242,33 +243,37 @@ class GPSClassifierProcessor:
                 smoothed_normal_accel = np.polyfit(time, normal_accel, 1)
                 smoothed_heading = np.polyfit(time, heading, 1)
                 
-                print("SMOOTHED NORMAL ACCEL: ", smoothed_normal_accel)
-                print("SMOOTHED HEADING: ", smoothed_heading)
+                # print("SMOOTHED NORMAL ACCEL: ", smoothed_normal_accel)
+                # print("SMOOTHED HEADING: ", smoothed_heading)
                 
-                if smoothed_normal_accel[0] > t_na_threshold or smoothed_heading[0] > t_h_threshold:
-                    self._start_event(time=current_process.starting_time, heading=heading.mean(), type=current_process.type)
+                if abs(smoothed_normal_accel[0]) > t_na_threshold or abs(smoothed_heading[0]) > t_h_threshold:
+                    self._start_event(time=current_process.starting_time, heading=heading[0], type=current_process.type)
                     # logging.info(f"TURN THRESHOLD EXCEEDED, CONFIRMED EVENT")
                 else:
                     # logging.info(f"TURN THRESHOLD NOT HIGH ENOUGH, TRASHING EVENT")
                     pass
+                
+            if not self.started_event: continue
             
-            if len(self.started_events) == 0: continue
-            next_event = self.started_events[0]
             # Check if linear acceleration event is still ongoing
-            if next_event.type == ProcessType.LINEAR_ACCELERATION:
+            if self.started_event.type == ProcessType.LINEAR_ACCELERATION:
                 gps_velocity = points[:, 3]
                 # Set marker to highest velocity point to end there
-                next_event.max_speed_time = time[np.argmax(gps_velocity)]
-                if next_event.starting_heading:
-                    diffs = heading - next_event.starting_heading
+                self.started_event.max_speed_time = time[np.argmax(gps_velocity)]
+                if self.started_event.starting_heading:
+                    diffs = np.abs(heading - self.started_event.starting_heading)
                     # End at the point where a difference is heading is too big
                     if diffs.max() >= 30:
-                        self._stop_event(time[np.argmax(diffs)])
-            elif next_event.type == ProcessType.TURN:
-                if next_event.starting_heading:
-                    diffs = heading - next_event.starting_heading
+                        self.min_time = time[np.argmax(diffs)]
+                        self.started_event._stop_event(self.min_time)
+                        self.started_event = None
+            elif self.started_event.type == ProcessType.TURN:
+                if self.started_event.starting_heading:
+                    diffs = heading - self.started_event.starting_heading
                     if diffs.min() <= 10:
-                        self._stop_event(time[np.argmax(diffs)])
+                        self.min_time = time[np.argmax(diffs)]
+                        self.started_event._stop_event(self.min_time)
+                        self.started_event = None
    
     def run_thread(self, frequency: int, window_size: int, la_threshold: float, t_threshold: float, la_time_window: float, t_time_window: float, debug=True):
         """Sliding Window"""
@@ -302,12 +307,13 @@ class GPSClassifierProcessor:
                 if abs(points[:, 0].mean()) < self.VELOCITY_THRESHOLD:
                     sleep(1 / frequency)
                     #! DEBUG
-                    if len(self.started_events) != 0:
-                        self._stop_event(points[:, 3][-1])
-                        self.times.append(points[:, 3][-1])
-                        self.events.append(0)
-                        print(self.times)
-                        print(self.events)
+                    if self.started_event:
+                        self.started_event._stop_event(points[:, 3][-1])
+                        self.started_event = None
+                        times.append(points[:, 3][-1])
+                        events.append(0)
+                        # print(times)
+                        # print(events)
                     
                     
                 else:
@@ -347,15 +353,15 @@ def run_processor():
         la_threshold = 7
         t_threshold=0.6
         la_time_window=10
-        t_time_window=10
+        t_time_window=5
         t1 = threading.Thread(target=processor.run_thread, args=(frequency, window_size, la_threshold, t_threshold, la_time_window, t_time_window))
         t1.start()
         
         #! Need to change these values
         frequency = 100
         la_threshold = 0.0006
-        t_na_threshold = 0.0009
-        t_h_threshold = 0.006
+        t_na_threshold = 10000.004
+        t_h_threshold = 0.009
         t2 = threading.Thread(target=processor.process_thread, args=(frequency, la_threshold, t_na_threshold, t_h_threshold))
         t2.start()
         
