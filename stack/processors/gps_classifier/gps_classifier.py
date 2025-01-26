@@ -261,7 +261,13 @@ class GPSClassifierProcessor:
                 sleep(1 / frequency)
                 continue
             
-            points = np.array(DBHandler.simple_select(f"SELECT d.gps_velocity, d.torque_request, c.steer_v, p.time, p.packet_id FROM dynamics d JOIN packet p ON p.packet_id = d.packet_id JOIN controls c ON c.packet_id = d.packet_id WHERE d.packet_id >= {self.start_packet} ORDER BY d.packet_id ASC LIMIT {window_size}", handler=self.handler, target=DBTarget.LOCAL))
+            points = np.array(DBHandler.simple_select(f"""SELECT d.gps_velocity, d.torque_request, c.steer_v, p.time, p.packet_id 
+                                                          FROM dynamics d 
+                                                          JOIN packet p ON p.packet_id = d.packet_id 
+                                                          JOIN controls c ON c.packet_id = d.packet_id 
+                                                          WHERE d.packet_id >= {self.start_packet} 
+                                                          ORDER BY d.packet_id ASC 
+                                                          LIMIT {window_size}""", handler=self.handler, target=DBTarget.LOCAL))
             
             if len(points) > 0:
                 # Checks if at rest
