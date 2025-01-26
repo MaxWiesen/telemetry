@@ -6,10 +6,11 @@ import datetime
 import os
 import psycopg
 from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 from pathlib import Path
 
 
-class DBTarget():
+class DBTarget:
     LOCAL = {
         'dbname': 'telemetry',
         'users': {
@@ -64,7 +65,7 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
                     return os.path.abspath(os.path.join(root, name))
         return None
 
-    desc_path = '/ingest/DB_description.pkl' if os.getenv('IN_DOCKER') else find_db_description()
+    desc_path = '/DB_description.pkl' if os.getenv('IN_DOCKER') else find_db_description()
     force = force or not bool(desc_path)
     desc_path = desc_path or os.getcwd().rsplit('/analysis', 1)[0] + '/analysis/sql_utils/DB_description.pkl'
 
@@ -77,13 +78,11 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
                                        format_type(a.atttypid, a.atttypmod) as data_type FROM pg_tables t 
                                        JOIN pg_attribute a on a.attrelid::regclass = t.tablename::regclass 
                                        WHERE t.schemaname = 'public' AND a.attnum > 0''',
-                                       target=target, user='electric', handler=handler, return_df=pd.DataFrame,
+                                       target=target, user='electric', handler=handler, return_df=True,
                                        index_col='tablename')
-        data.loc[:, 'data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
+        data['data_type'] = data.data_type.str.split('[', regex=False).str[0]     # Split [] if exists for is_list
         data.loc[data.attname == 'gps', 'attndims'] = 1
-        data.data_type.replace({'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'double precision': float,
-                                'text': str, 'boolean': bool, 'jsonb': Jsonb, 'date': datetime.date, 'bytea': bytearray},
-                               inplace=True)
+        data.replace({'data_type': DBHandler.pg2py_types}, inplace=True)
         table_column_specs = {table: {row.attname: (row.data_type, row.attndims) for _, row in
                                       data.loc[data.index == table].iterrows()} for table in data.index.unique()}
         pickle.dump((now, table_column_specs), open(desc_path, 'wb'))
@@ -99,9 +98,14 @@ class DBHandler:
     """
     Class for interfacing with the database
     """
-    def __init__(self, unsafe=False):
+    pg2py_types = {'smallint': int, 'integer': int, 'bigint': int, 'real': float, 'double precision': float,
+                   'text': str, 'boolean': bool, 'jsonb': Jsonb, 'date': datetime.date, 'bytea': bytearray}
+
+    def __init__(self, unsafe=False, target=None, conn_pool_size=1):
         self.unsafe = unsafe
-        self.cnx = None
+        self.target = target
+        self.conn = None
+        self.conn_pool_size = conn_pool_size
 
     def connect(self, target=DBTarget.LOCAL, user='analysis'):
         """
@@ -114,16 +118,42 @@ class DBHandler:
         """
         if isinstance(target, str):
             target = getattr(DBTarget, target)
-        cnx = psycopg.connect(dbname=target['dbname'], user=user, password=target['users'][user], host=target['host'],
-                              port=target['port'])
+
+        conf = {'dbname': target['dbname'],
+                'user': user,
+                'password': target['users'][user],
+                'host': target['host'],
+                'port': target['port']}
+
         if self.unsafe:
             logging.warning('\t\tYOU ARE USING AN UNSAFE DBHandler INSTANCE. ENSURE TO DISCONNECT THE CONNECTION!')
-            self.cnx = cnx
-
-        return cnx
+            conf['autocommit'] = True
+            if self.conn_pool_size == 1:
+                self.conn = psycopg.connect(**conf)
+            else:
+                logging.info(f'\t\tInstantiating Connection Pool of Size: {self.conn_pool_size}...')
+                self.conn = ConnectionPool(kwargs=conf, open=True, min_size=self.conn_pool_size)
+                self.conn.wait()
+                logging.info(f'\t\tConnection Pool Fully Connected!')
+        else:
+            return psycopg.connect(**conf)
 
     def kill_cnx(self):
-        del self.cnx
+        if not self.unsafe:
+            raise Exception('\t\tUnexpected behavior: Attempt made to close safe DBHandler connection.')
+        self.conn.close()
+        logging.info('\t\tSuccessfully killed connection pool.')
+
+    def __enter__(self):
+        '''
+        Enables 'with MQTTHandler(<name>, MQTTTarget.LOCAL) as mqtt:' logic which auto disconnects created client
+        irrespective of errors. Class target preferred to local
+        '''
+        self.connect(self.target, user='electric')
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.kill_cnx()
 
     @classmethod
     def simple_select(cls, query: str, target=DBTarget.LOCAL, user='electric', handler=None, return_df=False, **pd_kwargs):
@@ -147,15 +177,23 @@ class DBHandler:
         if 'SELECT' not in query.upper():
             raise ValueError('Simple select is built specifically for surveying data. Non-"SELECT" queries are prohibited.')
 
-        if return_df:
-            with handler.connect(target, user) as cnx:
-                return pd.io.sql.read_sql(query, cnx, **pd_kwargs)
 
         if handler.unsafe:
-            with handler.cnx.cursor() as cur:
-                cur.execute(query)
-                return cur.fetchall()
+            if handler.conn_pool_size == 1:
+                if return_df:
+                    return pd.io.sql.read_sql(query, handler.conn, **pd_kwargs)
+                with handler.conn.cursor() as cur:
+                    cur.execute(query)
+                    return cur.fetchall()
+            with handler.conn.connection() as conn:
+                if return_df:
+                    return pd.io.sql.read_sql(query, conn, **pd_kwargs)
+                with conn.cursor() as cur:
+                    cur.execute(query)
+                    return cur.fetchall()
         with handler.connect(target, user) as cnx:
+            if return_df:
+                return pd.io.sql.read_sql(query, cnx, **pd_kwargs)
             with cnx.cursor() as cur:
                 cur.execute(query)
                 return cur.fetchall()
@@ -215,9 +253,6 @@ class DBHandler:
 
         table_desc = get_table_column_specs(target=target, handler=handler)[table]
 
-        if returning is None:
-            returning = next(iter(table_desc.keys()))   # Use name of first column of table if not explicitly passed
-
         data = cls.get_insert_values(table, dict(data), table_desc)
 
         def flat_gen(data):
@@ -234,13 +269,17 @@ class DBHandler:
         def send_body(cur: psycopg.cursor.Cursor):
             cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
                             VALUES ({', '.join([dtype_map[table_desc[col][0]] for col in data.keys()])})
-                            RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''',
+                            {(f'RETURNING {returning}' if isinstance(returning, str) else 'RETURNING' + ', '.join(returning)) if returning else ''}''',
                             list(flat_gen(data)))
-            return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
+            return (cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()) if returning else None
 
         if handler.unsafe:
-            with handler.cnx.cursor() as cur:
-                return send_body(cur)
+            if handler.conn_pool_size == 1:
+                with handler.conn.cursor() as cur:
+                    return send_body(cur)
+            with handler.conn.connection() as conn:
+                with conn.cursor() as cur:
+                    return send_body(cur)
         with handler.connect(target, user) as cnx:
             with cnx.cursor() as cur:
                 return send_body(cur)
@@ -284,8 +323,12 @@ class DBHandler:
             return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
 
         if handler.unsafe:
-            with handler.cnx.cursor() as cur:
-                return send_body(cur)
+            if handler.conn_pool_size == 1:
+                with handler.conn.cursor() as cur:
+                    return send_body(cur)
+            with handler.conn.connection() as conn:
+                with conn.cursor() as cur:
+                    return send_body(cur)
         with handler.connect(target, user) as cnx:
             with cnx.cursor() as cur:
                 return send_body(cur)
@@ -293,7 +336,10 @@ class DBHandler:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    handler = DBHandler(unsafe=True)
-    cnx = handler.connect(DBTarget.LOCAL, 'electric')
-    get_table_column_specs(True, True, handler=handler)
-    handler.kill_cnx()
+    with DBHandler(unsafe=True, target=DBTarget.LOCAL) as handler:
+        print(get_table_column_specs(force=True, verbose=True, handler=handler)['dynamics'])
+
+        # from tqdm import tqdm
+        # for i in tqdm(range(1, 1000)):
+        #     DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', handler=handler, data={'packet_id': i, 'time': int(time.time())})
+        # print(DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0])

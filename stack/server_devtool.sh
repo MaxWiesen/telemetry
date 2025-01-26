@@ -7,7 +7,18 @@ echo -e "\t3) Delete the existing images and telemetry_db volume"
 echo -e "\t4) Delete the existing images and both volumes (INCLUDING GRAFANA DASHBOARDS!)"
 echo -e "\tQ) Run Processor in background and start server"
 echo -e "\tW) Delete the existing server and processors images"
+echo -e "\tE) Delete the lap timer processors images"
+echo -e "\tF) Delete the gps classifier processors images"
 echo
+
+
+OS=$(uname)
+if [[ "$OS" == "Linux" ]]; then
+    SUDO="sudo"
+else
+    SUDO=""
+fi
+
 
 while :
 do
@@ -15,24 +26,24 @@ do
     echo
     echo
     cd $(find . -name "ingest") || (echo "Failed to find ingest" && exit)
-    id "postgres" > /dev/null 2>&1 && sudo pkill -u postgres
+    id "postgres" > /dev/null 2>&1 && $SUDO pkill -u postgres
     case $opt in
         1)
-            sudo docker compose down
-            sudo docker compose up
+            $SUDO docker compose down
+            $SUDO docker compose up
             break
             ;;
         2)
-            sudo docker compose down
-            sudo docker rmi "$(sudo docker image ls | grep telemetry_backend | awk '{print $3}')"
-            sudo docker compose up
+            $SUDO docker compose down
+            $SUDO docker rmi "$($SUDO docker image ls | grep telemetry_backend | awk '{print $3}')"
+            $SUDO docker compose up
             break
             ;;
         3)
-            sudo docker compose down
-            sudo docker rmi "$(sudo docker image ls | grep telemetry_backend | awk '{print $3}')"
-            sudo docker volume rm telemetry_db && sudo docker volume create telemetry_db
-            sudo docker compose up
+            $SUDO docker compose down
+            $SUDO docker rmi "$($SUDO docker image ls | grep telemetry_backend | awk '{print $3}')"
+            $SUDO docker volume rm telemetry_db && $SUDO docker volume create telemetry_db
+            $SUDO docker compose up
             break
             ;;
         4)
@@ -44,11 +55,11 @@ do
                 echo
                 case $yn in
                     Y|y)
-                        sudo docker compose down
-                        sudo docker rmi "$(sudo docker image ls | grep telemetry_backend | awk '{print $3}')"
-                        sudo docker volume rm telemetry_db && sudo docker volume create telemetry_db
-                        sudo docker volume rm grafana_storage && sudo docker volume create grafana_storage
-                        sudo docker compose up
+                        $SUDO docker compose down
+                        $SUDO docker rmi "$($SUDO docker image ls | grep telemetry_backend | awk '{print $3}')"
+                        $SUDO docker volume rm telemetry_db && $SUDO docker volume create telemetry_db
+                        $SUDO docker volume rm grafana_storage && $SUDO docker volume create grafana_storage
+                        $SUDO docker compose up
                         break
                         ;;
                     N|n)
@@ -63,27 +74,41 @@ do
             break
             ;;
         q|Q)
-            sudo docker compose down
-            sudo docker compose up -d
+            $SUDO docker compose down
+            $SUDO docker compose up -d
             cd ../processors || (echo "Failed to find processors" && exit)
-            sudo docker compose down
-            sudo docker compose up -d
-            echo "Processor container ID: $(sudo docker container ls | grep telemetry_processors | awk '{print $1}')"
+            $SUDO docker compose down
+            $SUDO docker compose up -d
+            echo "Processor container ID: $($SUDO docker container ls | grep telemetry_processors | awk '{print $1}')"
             cd ../ingest
-            sudo docker compose logs -f
+            $SUDO docker compose logs -f
             break
             ;;
         w|W)
-            sudo docker compose down
-            sudo docker rmi "$(sudo docker image ls | grep telemetry_backend | awk '{print $3}')"
-            sudo docker rmi "$(sudo docker image ls | grep telemetry_processors | awk '{print $3}')"
-            sudo docker compose up -d
+            $SUDO docker compose down
+            $SUDO docker rmi "$($SUDO docker image ls | grep telemetry_backend | awk '{print $3}')"
+            $SUDO docker rmi "$($SUDO docker image ls | grep telemetry_processors | awk '{print $3}')"
+            $SUDO docker compose up -d
             cd ../processors || (echo "Failed to find processors" && exit)
-            sudo docker compose down
-            sudo docker compose up -d
-            echo "Processor container ID: $(sudo docker container ls | grep telemetry_processors | awk '{print $1}')"
+            $SUDO docker compose down
+            $SUDO docker compose up -d
+            echo "Processor container ID: $($SUDO docker container ls | grep telemetry_processors | awk '{print $1}')"
             cd ../ingest
-            sudo docker compose logs -f
+            $SUDO docker compose logs -f
+            break
+            ;;
+        e|E)
+            cd ../processors/lap_timer || (echo "Failed to find processors" && exit)
+            $SUDO docker compose down
+            $SUDO docker rmi "$($SUDO docker image ls | grep telemetry_processors | awk '{print $3}')"
+            $SUDO docker compose up
+            break
+            ;;
+        f|F)
+            cd ../processors/gps_classifier || (echo "Failed to find processors" && exit)
+            $SUDO docker compose down
+            $SUDO docker rmi "$($SUDO docker image ls | grep telemetry_processors | awk '{print $3}')"
+            $SUDO docker compose up
             break
             ;;
         *)
