@@ -21,11 +21,6 @@ else:
     from analysis.sql_utils.db_handler import DBHandler, DBTarget, get_table_column_specs
     from stack.ingest.mqtt_handler import MQTTHandler
 
-# Linear acceleration, turns
-
-#! Debug
-times = []
-events = []
 
 class ProcessType(Enum):
     LINEAR_ACCELERATION = 0
@@ -33,7 +28,7 @@ class ProcessType(Enum):
     
 
 class Event:    
-    def __init__(self, type: ProcessType, starting_time: int, starting_heading: float, event_id: int):
+    def __init__(self, type: ProcessType, starting_time: int, starting_heading: float, event_id: int = -9999):
         self.type: ProcessType = type
         self.starting_time: int = starting_time
         
@@ -62,27 +57,13 @@ class Event:
                 "end_time": time,
                 "notes": f"{self.type.name}"
         }
-        print("DB OBJ: ", db_obj)
         #! Will crash if no event
-        # DBHandler.insert(table="classifier", data=db_obj, target=DBTarget.LOCAL, user="electric", handler=self.handler)
+        DBHandler.insert(table="classifier", data=db_obj, target=DBTarget.LOCAL, user="electric", handler=self.handler)
         
         times.append(self.starting_time)
         events.append(0)
         times.append(self.starting_time)
         events.append(1 if self.type == ProcessType.LINEAR_ACCELERATION else -1)
-        
-        # print(times)
-        # print(events)
-        
-        #! DEBUG
-        times.append(time)
-        events.append(1 if self.type == ProcessType.LINEAR_ACCELERATION else -1)       
-        times.append(time)
-        events.append(0)
-        
-        print(times)
-        print(events)
-        
         
 class Process:
     def __init__(self, type: ProcessType, starting_packet: int, starting_time: int, target_time: int):
@@ -95,7 +76,7 @@ class Process:
 class GPSClassifierProcessor:
     def __init__(self, db_handler: DBHandler=None):
         self.handler = db_handler if db_handler else DBHandler()
-        self.event_id = None
+        self.event_id = -9999
         self.start_packet: int = 0
         self.status = 0
         
@@ -148,14 +129,12 @@ class GPSClassifierProcessor:
         if abs(avg_steer_voltage) > t_threshold:
             starting_packet: int = packet[0]
             starting_time: int = time[0]
-            # logging.info(f"HIGH STEER REQUEST ACHIEVED AT {starting_time}: {avg_steer_voltage}")
             target_time = starting_time + t_time_window * 1000
             new_process = Process(type=ProcessType.TURN, starting_packet=starting_packet, starting_time=starting_time, target_time=target_time)
             self.processes.append(new_process)
             return
         else:
             pass
-            # logging.info(f"HIGH STEER REQUEST NOT ACHIEVED: {avg_steer_voltage}. TRASHING RESULTS")
         
         # Look for high spike in torque request             
         avg_torque_request = np.average(torque_request)
@@ -163,15 +142,12 @@ class GPSClassifierProcessor:
         if avg_torque_request > la_threshold:
             starting_packet: int = packet[0]
             starting_time: int = time[0]
-            # logging.info(f"STARTING TIME: {starting_time}")
-            # logging.info(f"HIGH TORQUE REQUEST ACHIEVED AT {starting_time}: {avg_torque_request}")
             target_time = starting_time + la_time_window * 1000
             new_process = Process(type=ProcessType.LINEAR_ACCELERATION, starting_packet=starting_packet, starting_time=starting_time, target_time=target_time)
             self.processes.append(new_process)
             return
         else:
             pass
-            # logging.info(f"HIGH TORQUE REQUEST NOT ACHIEVED: {avg_torque_request}. TRASHING RESULTS")
                 
         
     def process_thread(self, frequency: int, la_threshold: float, t_na_threshold: float, t_h_threshold: float):
@@ -196,29 +172,24 @@ class GPSClassifierProcessor:
                 continue
             
             points: NDArray = []
-            # logging.info(f"LOADED PROCESS {current_process.type} STARTING AT {current_process.starting_time}")
             while True:
                 points = np.array(DBHandler.simple_select(f"""
-                    WITH next_time AS (
-                        SELECT MIN(time) as min_time
-                        FROM packet
-                        WHERE time > {current_process.target_time}
-                    )
                     SELECT d.gps_heading, d.body3_accel, p.time, d.gps_velocity
                     FROM dynamics d
                     JOIN packet p ON p.packet_id = d.packet_id
-                    WHERE (SELECT min_time FROM next_time) IS NOT NULL
-                    AND p.time <= (SELECT min_time FROM next_time)
+                    WHERE p.time > {current_process.target_time}
+                    AND p.time <= (
+                        SELECT MIN(time) 
+                        FROM packet 
+                        WHERE time > {current_process.target_time}
+                    )
                     AND p.time >= {current_process.starting_time}
-                    ORDER BY p.time
-                    ASC
+                    ORDER BY p.time ASC
                     LIMIT 500
                     """, handler=self.handler, target=DBTarget.LOCAL), dtype=object)
                 if points.any(): break
                 sleep(1 / frequency)
-                
-            # logging.info(f"ALL POINTS FOUND. STARTING PROCESSING.")
-            
+                            
             body3_accel = points[:, 1]
             body3_accel = np.array([list(row) for row in body3_accel])
             tangential_accel = body3_accel[:, 0]
@@ -229,28 +200,20 @@ class GPSClassifierProcessor:
             if current_process and current_process.type == ProcessType.LINEAR_ACCELERATION:
                 smoothed_tangential_accel = np.polyfit(time, tangential_accel, 1)
                 
-                # print("SMOOTHED ACCEL: ", smoothed_tangential_accel)
                 
                 if smoothed_tangential_accel[0] > la_threshold:
                     self._start_event(time=current_process.starting_time, heading=heading[0], type=current_process.type)
-                    # logging.info(f"LINEAR ACCELERATION THRESHOLD EXCEEDED, CONFIRMED EVENT")
                 else:
                     pass
-                    # logging.info(f"LINEAR ACCELERATION THRESHOLD NOT HIGH ENOUGH, TRASHING EVENT")
                 
             
             if current_process and current_process.type == ProcessType.TURN:
                 smoothed_normal_accel = np.polyfit(time, normal_accel, 1)
                 smoothed_heading = np.polyfit(time, heading, 1)
                 
-                # print("SMOOTHED NORMAL ACCEL: ", smoothed_normal_accel)
-                # print("SMOOTHED HEADING: ", smoothed_heading)
-                
                 if abs(smoothed_normal_accel[0]) > t_na_threshold or abs(smoothed_heading[0]) > t_h_threshold:
                     self._start_event(time=current_process.starting_time, heading=heading[0], type=current_process.type)
-                    # logging.info(f"TURN THRESHOLD EXCEEDED, CONFIRMED EVENT")
                 else:
-                    # logging.info(f"TURN THRESHOLD NOT HIGH ENOUGH, TRASHING EVENT")
                     pass
                 
             if not self.started_event: continue
@@ -267,6 +230,7 @@ class GPSClassifierProcessor:
                         self.min_time = time[np.argmax(diffs)]
                         self.started_event._stop_event(self.min_time)
                         self.started_event = None
+            # Same but with turns
             elif self.started_event.type == ProcessType.TURN:
                 if self.started_event.starting_heading:
                     diffs = heading - self.started_event.starting_heading
@@ -281,7 +245,6 @@ class GPSClassifierProcessor:
         while True:
             # Event not properly set
             if not debug and (not self.event_id or self.status != 1):
-                logging.info("No Event Started")
                 sleep(1 / frequency)
                 continue
             
@@ -298,22 +261,15 @@ class GPSClassifierProcessor:
                 sleep(1 / frequency)
                 continue
             
-            # logging.info(self.start_packet)
-            points  = np.array(DBHandler.simple_select(f"SELECT d.gps_velocity, d.torque_request, c.steer_v, p.time, p.packet_id FROM dynamics d JOIN packet p ON p.packet_id = d.packet_id JOIN controls c ON c.packet_id = d.packet_id WHERE d.packet_id >= {self.start_packet} ORDER BY d.packet_id ASC LIMIT {window_size}", handler=self.handler, target=DBTarget.LOCAL))
-            # logging.info(points[0][3])
+            points = np.array(DBHandler.simple_select(f"SELECT d.gps_velocity, d.torque_request, c.steer_v, p.time, p.packet_id FROM dynamics d JOIN packet p ON p.packet_id = d.packet_id JOIN controls c ON c.packet_id = d.packet_id WHERE d.packet_id >= {self.start_packet} ORDER BY d.packet_id ASC LIMIT {window_size}", handler=self.handler, target=DBTarget.LOCAL))
             
             if len(points) > 0:
                 # Checks if at rest
                 if abs(points[:, 0].mean()) < self.VELOCITY_THRESHOLD:
                     sleep(1 / frequency)
-                    #! DEBUG
                     if self.started_event:
                         self.started_event._stop_event(points[:, 3][-1])
                         self.started_event = None
-                        times.append(points[:, 3][-1])
-                        events.append(0)
-                        # print(times)
-                        # print(events)
                     
                     
                 else:
@@ -341,13 +297,12 @@ class GPSClassifierProcessor:
 
         
 def run_processor():
-    with MQTTHandler(name="terence_dev") as mqtt:
+    with MQTTHandler(name="gps_classifier_processor") as mqtt:
         
         handler = DBHandler()
         processor = GPSClassifierProcessor(db_handler=handler)
 
         
-        #! Need to change these values
         frequency = 500
         window_size = 50
         la_threshold = 7
@@ -357,7 +312,6 @@ def run_processor():
         t1 = threading.Thread(target=processor.run_thread, args=(frequency, window_size, la_threshold, t_threshold, la_time_window, t_time_window))
         t1.start()
         
-        #! Need to change these values
         frequency = 100
         la_threshold = 0.0006
         t_na_threshold = 10000.004
@@ -367,41 +321,3 @@ def run_processor():
         
         mqtt.client.on_message = processor.on_message
         mqtt.subscribe("config/test")
-        
-
-
-# - If high spike in torque:
-    # - Listen for next x seconds
-
-
-
-# If Speed < threshold: trash results
-
-# Linear Acceleration Event: 
-#       - Followed by high torque request #!
-#       - tangential acceleration > threshold (and then > 0) #!
-#       - ∆speed > threshold (regression)
-#       - normal acceleration < threshold, 
-#       - ∆heading < threshold (regression), 
-
-# Turn Event:
-#       - normal acceleration > threshold #!
-#       - ∆heading > threshold (regression)
-#       - Steer voltage(?)
-
-# Steps
-
-# 2 threads
-
-# 1. High Torque Request --> trigger listening event
-# 2. Get x seconds worth of data after event triggered
-# 3. a. If tangential acceleration's slope over threshold: confirm start of linear acceleration event & stop ongoing turn events
-# 3. b. If not, trash it
-
-# 1. High steer voltage --> trigger listening event
-# 2. Get x seconds worth of data after event triggered
-# 3. a. If high normal acceleration's slope (can be backed up by ∆heading): confirm turn event & stop ongoing linear acceleration event
-# 3. b. If not, trash it
-
-
-# Have a x seconds cooldown between event started, and start in parallel another check / add to queue

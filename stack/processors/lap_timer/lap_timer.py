@@ -24,27 +24,7 @@ class LapTimerProcessor:
         self.gate: tuple[tuple[float], tuple[float]]  = None
         self.status: int = None
         
-        self.start_packet: int = 0
-
-    def check_alive(self) -> None:
-        logging.info(DBHandler.simple_select('''SELECT event_id FROM event WHERE status = 1''', handler=self.handler))
-
-    def sliding_window(self, f, query: str, window_size: int, **kwargs) -> None:
-        """
-            Args:
-                f: function to execute with the result of the query
-                query: SQL query to run
-                window_size: Maximum # of packets to be collected
-        """
-        
-        
-        df = DBHandler.simple_select(query, handler=self.handler, return_df=True)
-        f(df, **kwargs)
-        
-        
-        
-        
-        
+        self.start_packet: int = 0        
 
     def _track_lap(self, gate: tuple[tuple[float, float], tuple[float, float]], points: list) -> float | None:
         """
@@ -52,11 +32,7 @@ class LapTimerProcessor:
         Args:
             last_packet: checking after this value
             gate: human-measured gate that represents the starting line
-        """
-        
-        
-        # points: list[tuple[str, int]] = handler.simple_select(f"SELECT d.gps, p.time FROM dynamics d JOIN packet p ON p.packet_id = d.packet_id WHERE d.packet_id >= {last_packet} ORDER BY d.packet_id ASC LIMIT 500", handler=handler, target=DBTarget.LOCAL)
-        
+        """        
     
         for i in range(len(points) - 1):
             if(self._is_intersection(gate, [points[i][0], points[i + 1][0]])):
@@ -101,43 +77,16 @@ class LapTimerProcessor:
             "start_time": time
         }
         
-        logging.debug("DB OBJ")
-        logging.debug(db_obj)
-        
         # Start time
         if self.status != 1:
             DBHandler.set_event_status(event_id=self.event_id, status=1, user='electric', start_time=time, returning='day_id', handler=self.handler)
         
         DBHandler.insert(table="classifier", data=db_obj, target=DBTarget.LOCAL, user="electric", handler=self.handler)
-        requests.post("http://" + os.environ["HOST_IP"] + ":5000/new_lap", data={"time": time})
-        logging.info(f"Successfully recorded time {time}")
-    
-    # def run_thread(self, handler):
-    #     """Grabs all the points and does sliding window on here"""
-    #     while True:
-    #         if not self.event_id or not self.gate:
-    #             logging.info("No Event ID or Gate...")
-    #             sleep(5)
-    #             continue
-    #         else:
-    #             logging.debug(f"Event ID: {self.event_id} | Gate: {self.gate}")
-    #         query = DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1", target=DBTarget.LOCAL, handler=handler)
-    #         sleep(5)
-    #         # No Packet
-    #         last_packet = 0 if query == None or len(query) == 0 else query[0][0]
-    #         # Get Time of intersect
-    #         loop = self._track_lap(last_packet=last_packet, gate=self.gate, handler=handler)
-    #         if loop:
-    #             # Is timestamp valid? 
-    #             if self._is_valid(time=loop, handler=handler, delta=10):
-    #                 # Add time to classifier
-    #                 logging.info(f"Lap Time is Valid")
-    #                 self._record_time(time=loop, handler=handler)
-    #             else:
-    #                 logging.warning(f"Lap Time is Not Valid")
-    #         else:
-    #             logging.info("No lap detected")
-    
+        try:
+            requests.post("http://" + os.getenv("HOST_IP") + ":5000/new_lap", data={"time": time})
+        except requests.exceptions.ConnectionError:
+            logging.error("Could not connect to Flask server")
+        logging.info(f"Successfully recorded time {time}")    
     
     def _latlon_to_ecef(self, lat: float, lon: float) -> tuple[float, float, float]:
         # Constants
@@ -198,7 +147,7 @@ class LapTimerProcessor:
             "event_id": self.event_id,
             "type": "gate",
             "notes": f"{gates[0][0]}_{gates[0][1]}_{gates[1][0]}_{gates[1][1]}",
-            "start_time": time.time() * 1000 #! Might need to change this?
+            "start_time": time.time() * 1000
         }
         DBHandler.insert(table="classifier", data=db_obj, target=DBTarget.LOCAL, user="electric", handler=self.handler)
         
@@ -216,21 +165,19 @@ class LapTimerProcessor:
                 logging.debug(f"Event ID: {self.event_id} | Gate: {self.gate} | Status: {self.status}")
                 
             points: list[tuple[str, int]] = DBHandler.simple_select(f"SELECT d.gps, p.time FROM dynamics d JOIN packet p ON p.packet_id = d.packet_id WHERE d.packet_id >= {self.start_packet} ORDER BY d.packet_id DESC LIMIT {window_size}", handler=self.handler, target=DBTarget.LOCAL)
-            print(points)
-            # print(f"SELECT d.gps, p.time FROM dynamics d JOIN packet p ON p.packet_id = d.packet_id WHERE d.packet_id >= {self.start_packet} ORDER BY d.packet_id DESC LIMIT {window_size}")
 
             # Not enough points
-            # if len(points) < window_size:
-            #     logging.warning("Not enough points for computation. Trashing the instance")
-            #     sleep(1 / frequency)
-            #     continue
+            if len(points) < window_size:
+                logging.warning("Not enough points for computation. Trashing the instance")
+                sleep(1 / frequency)
+                continue
             
-            # # Suspicious time deltas
-            # MAX_TIME_DELTA = 5 * 1000
-            # if points[len(points) - 1][1] - points[0][1] < MAX_TIME_DELTA:
-            #     logging.error(f"Interval is suspicious: {points[len(points) - 1][1] - points[0][1]}ms. Trashing the instance")
-            #     sleep(1 / frequency)
-            #     continue
+            # Suspicious time deltas
+            MAX_TIME_DELTA = 5 * 1000
+            if points[len(points) - 1][1] - points[0][1] < MAX_TIME_DELTA:
+                logging.error(f"Interval is suspicious: {points[len(points) - 1][1] - points[0][1]}ms. Trashing the instance")
+                sleep(1 / frequency)
+                continue
             
             # Parse points
             df = pd.DataFrame(points, columns=['gps_str', 'timestamp'])
@@ -252,7 +199,7 @@ class LapTimerProcessor:
                 else:
                     logging.warning(f"Lap Time is Not Valid")
             else:
-                logging.info("No lap detected")
+                pass
             
             sleep(1 / frequency)
         
@@ -279,7 +226,7 @@ class LapTimerProcessor:
 
         
 def run_processor():
-    with MQTTHandler(name="terence_dev") as mqtt:
+    with MQTTHandler(name="lap_timer_processor") as mqtt:
         
         handler = DBHandler()
         processor = LapTimerProcessor(db_handler=handler)

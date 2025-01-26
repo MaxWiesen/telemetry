@@ -1,4 +1,5 @@
 from itertools import count
+import os
 from typing import Tuple, Union
 import numpy as np
 import pandas as pd
@@ -71,5 +72,9 @@ if __name__ == '__main__':
     
     
     dbtest.start_event_with_gate(1, ((30.289727, -97.736346), (30.289604, -97.736272)))
+    
+    if not os.path.exists("gps_test_data_2.csv"):
+        raise FileNotFoundError(f"File gps_test_data_2.csv not found.")
+    
     dbtest.add_data_for_gps("gps_test_data_2.csv", 1)
     # mqtt.disconnect()

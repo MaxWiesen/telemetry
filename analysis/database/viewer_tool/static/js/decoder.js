@@ -1,9 +1,7 @@
 //Decodes information from .json file and updates the client's instances
 function decodeValues(jsonObj) {
-    console.log("Decoder Triggered w Obj: " + jsonObj) //TODO remove, DEBUG only
     //Decode string to actual JSON object
     jsonObj = JSON.parse(jsonObj)
-    console.log("Converted to JSON")
 
     //Pull all relevant on-screen elements to be updated
     //let startButton = document.getElementById('startButton');
@@ -13,16 +11,13 @@ function decodeValues(jsonObj) {
     //TODO more elements here later...
 
     //Update page by button elements
-    // updateStartButton()
+    //updateStartButton()
     //updateStopButton()
     updateLapTable()
 
     function updateStartButton() {
-        console.log("Considering updating start.")
-        console.log(jsonObj.timerRunning + " " + startButton.getAttribute("isRunning"))
         //If timer is running but this object is not, update this object
         if (jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "false")) {
-            console.log("Starting this instance's timer.")
 
             //Set local attributes
             startButton.setAttribute("isRunning", true)
@@ -47,11 +42,8 @@ function decodeValues(jsonObj) {
         }
     }
 
-    //! LEFT OF HERE
     function updateLapTable() {
-        console.log("HERE 1")
         if (!jsonObj.hasOwnProperty("laps")) return;
-        console.log("HERE 2")
         const newTable = document.createElement("table");
         newTable.classList.add("table");
         
@@ -81,7 +73,6 @@ function decodeValues(jsonObj) {
         // Append the row to the table
         thead.appendChild(row);
 
-        console.log("HERE 3")
         for(let i = jsonObj.laps.length - 1; i >= 0; i--) {
             const row = document.createElement("tr");
     
@@ -104,7 +95,6 @@ function decodeValues(jsonObj) {
             // Append the row to the table
             thead.appendChild(row);
         }
-        console.log("HERE 4")
         oldTable.parentNode.replaceChild(newTable, oldTable);
     }
 }

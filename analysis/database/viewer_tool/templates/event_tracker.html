@@ -112,7 +112,6 @@
             //Connect callback
             function onConnect() {
                 //Once connected, subscribe
-                console.log("onConnect"); //TODO remove, testing only
                 client.subscribe("event_sync");
             }
             //New message callback
@@ -120,7 +119,6 @@
                 decodeValues(message.payloadString)
             }
             function onConnectionLost() {
-                console.log("DISCON NOW")
             }
 
             //TODO when client loses connection
