@@ -14,6 +14,7 @@ app = Flask(__name__)
 config = {}
 os.environ["event_details"] = ""
 os.environ["eid"] = "-1"
+os.environ["page_details"] = ""
 
 def config_subscribe(client, userdata, msg):
     if msg.topic == 'config/event_sync':
@@ -31,42 +32,63 @@ def config_subscribe(client, userdata, msg):
             #Close the event in the database
             last_pack = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
             DBHandler.set_event_status(int(os.getenv("eid")), 0, packet_end=last_pack, user='electric')
+
         else:
             print("Key 'flag' is missing in the message payload.")
-        #Store return
-        os.environ["event_details"] = "" if ("flag" in msg and str(msg["flag"] == "END")) else json.dumps(msg)
+        #Store and print return
+        os.environ["event_details"] = json.dumps(msg)
         print("Index Event Details: " + os.getenv("event_details")) # TODO remove, debug only
+
+    elif msg.topic == 'config/page_sync':
+        # Convert msg to json object
+        msg = msg.payload.decode()
+        # TODO safety, Ensure all fields present
+        print("PAGE PAYLOAD: " + str(msg))
+        os.environ["page_details"] = msg
 
 def mqtt_client_loop(mqtt):
     # Start the MQTT client loop (this will run forever in the background)
     mqtt.client.loop_forever()
 
+
 @app.route('/', methods=['GET'])
 def index():
-    #Check to see if an event already exists TODO db handler simple select event id, where status is 1
-    print("EVENT DETAILS: " + os.getenv("event_details")) # TODO DEBUG only
-    #if os.getenv("event_details"): original check
+    #Check to see if an event already running
+    print("EVENT DETAILS: " + os.getenv("event_details")) # TODO Remove, DEBUG only
     try:
         os.environ["eid"] = str(DBHandler.simple_select('SELECT event_id FROM event WHERE status = 1 ORDER BY event_id DESC LIMIT 1')[0][0])
         print("Attempted Select Returned: " + os.getenv("eid")) #TODO REMOVE, debug only
     except Exception as e:
-        print("Database event-running check failed with " + str(e))
+        print("Database event-running check failed with error: " + str(e))
 
-    #TODO migrate from eid os env to request structure for all
-
+    #Event currently active, redirect
     if os.getenv("eid") != "-1" or os.getenv("event_details"):
         return redirect(url_for('create_event'))
-    #No existing event, normal path
+
+    #TODO Check to see if a drive day has been set up
+
+    #Normal path, set current page to index in page_sync and return render template
+    with MQTTHandler('flask_app') as mqtt:
+        mqtt.publish('config/page_sync', "index_page") #TODO RVW Publishing
     return render_template('index.html')
+
 
 @app.route('/new_drive_day/', methods=['GET'])
 def new_drive_day():
+    #Set the correct current page to be new drive day
+    #with MQTTHandler('flask_app') as mqtt:
+    #    mqtt.publish('config/page_sync', "new_event_page") #TODO RVW Publishing Maybe New Event?
+
     day_id = DBHandler.insert(table='drive_day', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=request.args, returning='day_id')
+    os.environ["day_id"] = str(day_id)
     return redirect(url_for('.new_event', day_id=day_id, method='new'))
 
 
 @app.route('/new_event/', methods=['GET'])
 def new_event():
+    with MQTTHandler('flask_app') as mqtt:
+        mqtt.publish('config/page_sync', "new_event_page") #TODO RVW Publishing Maybe New Event?
+
     return render_template('input_screen.html', day_id=request.form.get('day_id', request.args['day_id']))
 
 
@@ -75,6 +97,8 @@ def create_event():
     if request.method == 'POST':
         inputs = request.form.to_dict()
     else:
+        #with MQTTHandler('flask_app') as mqtt:
+        #    mqtt.publish('config/page_sync', "running_event_page")
         return render_template('event_tracker.html',
                 host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
                 event_id = 0, config_image = os.getenv("event_details")) #TODO RESOLVE ZERO
@@ -88,6 +112,7 @@ def create_event():
                                         user='electric', data=inputs, returning=['day_id', 'event_id'])
     with MQTTHandler('flask_app') as mqtt:
         mqtt.publish('config/flask', json.dumps({'event_id': event_id}, indent=4))
+    #    mqtt.publish('config/page_sync', "running_event_page")
     return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET',
                              DBTarget.LOCAL)), event_id=event_id, config_image = os.getenv("event_details"))
 
@@ -104,9 +129,15 @@ def set_event_time():
     DBHandler.set_event_status(**request.json, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
     return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=request.json['event_id'])
 
+
 @app.route('/reset_config_image', methods=['POST', 'GET'])
 def reset_config_image():
     os.environ['event_details'] = ""
+
+    # Update correct current page to be new event
+    with MQTTHandler('flask_app') as mqtt:
+        mqtt.publish('config/page_sync', "index_page")  # TODO RVW Publishing
+
     print("Config image reset. Event has ended.")
     return redirect(url_for('index'))
     #return json.dumps({'success': True}), 200, {'ContentType': 'application/json'}
@@ -117,6 +148,32 @@ def tune_data():
     json_object = json.loads(data)
     print(json_object)
     return render_template('texas_tune.html')
+
+
+@app.route('/verify_page/<string:cur_page>', methods=['GET', 'POST'])
+def verify_page(cur_page):
+    print("cur_page is: " + cur_page) #TODO remove, debug only
+    print("current page_details is: " + os.getenv("page_details"))
+
+    storedPage = os.getenv("page_details")
+
+    #Check against the current stored page
+    if cur_page == storedPage: #TODO Home for testing only, change to page_details os env
+        #If already on correct page, do not change
+        print("same\n") #TODO remove, testing only
+        return '', 204
+    else:
+        print("diff\n")
+        #If page is wrong, redirect to the right page
+        if storedPage == "new_event_page":
+            return redirect(url_for('.new_event', day_id=os.getenv("day_id"), method='new')) #temporary routing
+        elif storedPage == "running_event_page":
+            return redirect(url_for('create_event'))
+        elif storedPage == "index_page":
+            return redirect(url_for('index'))
+
+    #No case triggered, error
+    return '', 404
 
 
 @app.route('/turn_data', methods=['GET', 'POST'])
@@ -147,6 +204,7 @@ def vcu_parameters():
 def create_gates():
     pass
 
+
 @app.route('/new_lap/', methods=['POST'])
 def add_new_lap():
     if 'laps' not in config:
@@ -159,13 +217,12 @@ def add_new_lap():
 def notify_listeners():
     print(config)
     with MQTTHandler('flask_app') as mqtt:
-        mqtt.publish('event_sync', json.dumps(config, indent=4))
+        mqtt.publish('event_sync', json.dumps(config, indent=4)) #TODO revisit topic name...?
 
 
 if __name__ == '__main__':
-
     with MQTTHandler('testerieses', target=MQTTTarget.LOCAL, on_message=config_subscribe) as mqtt:
-        mqtt.client.subscribe('config/event_sync')
+        mqtt.client.subscribe('config/+') #TODO revert?
         mqtt.client.loop_start()
 
         if os.getenv('IN_DOCKER'):

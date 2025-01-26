@@ -103,11 +103,27 @@
                 //Once connected, subscribe
                 console.log("onConnect"); //TODO remove, testing only
                 client.subscribe("config/event_sync")
+
+                console.log("I got this far")
+                //Send message to page sync to ensure others on same page
+                let message = new Paho.MQTT.Message("running_event_page")
+                message.destinationName = "config/page_sync"
+                client.send(message);
+                console.log("Sent oh yeah")
+
+                //Listen for other page directions
+                client.subscribe("config/page_sync")
                 encodeValues(null, null, null, null, null, true)
             }
             //New message callback
             function onMessageArrived(message) {
-                decodeValues(message.payloadString)
+                console.log("Received with dest: " + message.destinationName)
+                //Screen for page sync
+                if(message.destinationName === "config/page_sync") {
+                    console.log("Message from page_sync: " + message.payloadString)
+                } else {
+                    decodeValues(message.payloadString)
+                }
             }
             function onConnectionLost() {
                 console.log("CONNECTION LOST")
