@@ -413,9 +413,14 @@ class DBHandler:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     with DBHandler(unsafe=True, target=DBTarget.LOCAL) as handler:
-        get_table_column_specs(force=True, verbose=True, handler=handler)
+        print (get_table_column_specs())
+        # pg_to_csv_names = {}
+        # for table in get_table_column_specs(force=True, verbose=True, handler=handler)):
+        #     for column, (dtype, ndim) in table.items():
+        #         if column == time
+        #         convert[column] = df[].astype(dtype)
 
-        from tqdm import tqdm
-        for i in tqdm(range(1, 1000)):
-            DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', handler=handler, data={'packet_id': i, 'time': int(time.time())})
-        print(DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0])
+        # from tqdm import tqdm
+        # for i in tqdm(range(1, 1000)):
+        #     DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', handler=handler, data={'packet_id': i, 'time': int(time.time())})
+        # print(DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0])

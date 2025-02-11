@@ -224,7 +224,7 @@ CREATE TABLE public.thermal
     water_inverter_temp smallint,
     water_rad_temp      smallint,
     rad_fan_set         smallint,
-    rad_fan_rpm         smallint,
+    rad_fan_rpm         bigint,
     batt_fan_set        smallint,
     batt_fan_rpm        smallint,
     flow_rate           smallint,
