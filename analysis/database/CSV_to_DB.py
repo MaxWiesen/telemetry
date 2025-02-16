@@ -11,8 +11,6 @@ import sys
 import json
 import matplotlib.pyplot as plt
 import numpy as np
-import gc
-import shutil
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -36,21 +34,17 @@ class CSVToDB():
         try:
             self.data_csv_folder = sorted(list(Path.cwd().joinpath("csv_data", data_csv_folder).glob("*.csv")))
         except FileNotFoundError:
-            logging.warning("NO FOLDER OF CSV FILES WERE SPECIFIED. ENSURE A FOLDER IS SELECTED OR DATA IS IN csv_data")
-            self.data_csv_folder = sorted(list(Path.cwd().joinpath("csv_data").glob("*.csv")))
+            raise FileNotFoundError("NO CSV FILES WERE FOUND UNDER csv_data/\nCREATE csv_data/ and add csv files within the folder.\n")
 
-    def combine_all_csv(self):
-        return pd.concat([pd.read_csv(self.data_csv_folder[i]) for i in range(len(self.data_csv_folder))], ignore_index=True)
-
-    def event_seperator(self, threshold = 20):
+    def event_seperator(self, threshold = 20, speed_filter = False):
         """"
         The class variable is a directory containing csv files from a certain drive day. The goal of this method is to 
         partition the folder into continous segments in which the car is running, outputting a list containing dataframes
         where each dataframe represents a near continous time period in which the car is running. 
         """
         csv_split = []
-        event = [pd.read_csv(self.data_csv_folder[0])]
         df_current = pd.read_csv(self.data_csv_folder[0])
+        event = [df_current.copy(deep=False)]
         
         if (len(self.data_csv_folder) == 1):
             event_storage = Path.cwd().joinpath("event_csv")
@@ -84,10 +78,10 @@ class CSVToDB():
                 df_forw["Time"][0] = df_current["Time"].iloc[-1] + ((dt_forw[0] - dt_current[0])//1000) #Find differing times
                 df_forw["Time"] = df_forw["Time"].iloc[0] + differences.cumsum()
                 df_current = df_forw
-                event.append(df_forw)
+                event.append(df_forw.copy(deep=False))
             else:
                 csv_split.append(pd.concat(event, ignore_index=True))
-                event = [df_forw]
+                event = [df_forw.copy(deep=False)]
                 df_current = df_forw
                 if (i == len(self.data_csv_folder) - 2):
                     csv_split.append(pd.concat(event))
@@ -95,51 +89,59 @@ class CSVToDB():
         time_arrays = [np.array(entry["Time"]) for entry in csv_split]
         time_diff = [np.diff(time_array) for time_array in time_arrays]
         delays = [np.where(diff >= threshold)[0] for diff in time_diff]
-        
-        #Find instances of car moving fast/high motor output. Keep a running mean /median and compare with the current value.
-        #Incorporate some future and past values
 
         #TODO event separation using wheel speeds
-        
-
         continous_event = []
-        #Partition into continous event list
         for i, (df, delay_indices) in enumerate(zip(csv_split, delays)):
             start_idx = 0
             for delay_idx in delay_indices:
                 continous_event.append(df.iloc[start_idx:delay_idx])  
                 start_idx = delay_idx 
             continous_event.append(df.iloc[start_idx:])
+
+        del csv_split # Free memory here
+
+        if (speed_filter):
+            speed_threshold = 5
+            std_threshold = 20
+            for i in tqdm(range(len(continous_event) - 1, -1, -1)):
+                flw_speed = continous_event[i]["Front Left Wheel Speed"].rolling(5, min_periods = 1).mean() #Smoothing in groups of 10
+                frw_speed = continous_event[i]["Front Right Wheel Speed"].rolling(5, min_periods = 1).mean()
+                blw_speed = continous_event[i]["Back Left Wheel Speed"].rolling(5, min_periods = 1).mean()
+                brw_speed = continous_event[i]["Back Right Wheel Speed"].rolling(5, min_periods = 1).mean()
+                time = continous_event[i]["Time"]
+
+                #Gradient of Acceleration
+                grad_flw = pd.Series(np.gradient(np.gradient(flw_speed, time), time)).rolling(40, min_periods = 1).std()
+                grad_frw = pd.Series(np.gradient(np.gradient(frw_speed, time), time)).rolling(40, min_periods = 1).std()
+                grad_blw = pd.Series(np.gradient(np.gradient(blw_speed, time), time)).rolling(40, min_periods = 1).std()
+                grad_brw = pd.Series(np.gradient(np.gradient(brw_speed, time), time)).rolling(40, min_periods = 1).std()
+
+                mask = (
+                    ((flw_speed > speed_threshold) |
+                    (frw_speed > speed_threshold) |
+                    (blw_speed > speed_threshold) |
+                    (brw_speed > speed_threshold)) &
+                    ((grad_flw > std_threshold) |
+                    (grad_frw > std_threshold) |
+                    (grad_blw > std_threshold) |
+                    (grad_brw > std_threshold)))
+                
+                filter = continous_event[i][mask]
+                if (len(filter.index) == 0 or filter["Time"].iloc[-1] - filter["Time"].iloc[0] < 30):
+                    continous_event.pop(i)
         
         event_storage = Path.cwd().joinpath("event_csv")
         if not os.path.exists(event_storage): 
             os.makedirs(event_storage) 
         for i in range(len(continous_event)):
             continous_event[i].to_csv(event_storage.joinpath(f'{i}.csv'))
-
-        del continous_event
-        del df_current
-        del df_forw
-
-        gc.collect()
-
-    def get_Tables(self):
-        """
-        Creates a dictionary based on get_table_column_specs to hold data to be added to the database
-        """
-        ent = get_table_column_specs()
-        for i, sub_dict in ent.items():
-            for j in sub_dict:
-                sub_dict[j] = []
-        return ent
-
-        
+      
     def enumerate_packet_id(self, data_csv):       
         """
         Enumerates the packet_id from the last known packet_id. Uses the csv with car data to determine amount of packet_id to add
         """
         try: 
-            #last_packet    
             last_packet = max(DBHandler.simple_select("SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1", 
                                                       target=DBTarget.LOCAL, user='electric', handler=self.db_handler)[0][0], 
                                                       self.last_packet)
@@ -156,75 +158,18 @@ class CSVToDB():
         Converts data to the csv to a format that can be added into the database
         """
         convert = {}
-        #pg to csv
-
-        pg_to_csv = {
-            "time" : "Time",
-            "torque_request": "Inverter Torque Request",
-            "vcu_position": ["Vehicle Displacement X", "Vehicle Displacement Y", "Vehicle Displacement Z"],
-            "vcu_velocity": ["Vehicle Velocity X", "Vehicle Velocity Y", "Vehicle Velocity Z"],
-            "vcu_accel": ["Vehicle Acceleration X", "Vehicle Acceleration Y", "Vehicle Acceleration Z"],
-            "gps": ["Longitude", "Latitude"],
-            "gps_velocity": "Speed",
-            "gps_heading": "Heading",
-            "body1_accel": ["VCU Acceleration X", "VCU Acceleration Y", "VCU Acceleration Z"],
-            "body2_accel": ["HVC Acceleration X", "HVC Acceleration Y", "HVC Acceleration Z"],
-            "body3_accel": ["PDU Acceleration X", "PDU Acceleration Y", "PDU Acceleration Z"],
-            "flw_accel": ["Front Left Acceleration X", "Front Left Acceleration Y", "Front Left Acceleration Z"],
-            "frw_accel": ["Front Right Acceleration X", "Front Right Acceleration Y", "Front Right Acceleration Z"],
-            "blw_accel": ["Back Left Acceleration X", "Back Left Acceleration Y", "Back Left Acceleration Z"],
-            "brw_accel": ["Back Right Acceleration X", "Back Right Acceleration Y", "Back Right Acceleration Z"],
-            "body1_gyro": ["VCU Gyro X", "VCU Gyro Y", "VCU Gyro Z"],
-            "body2_gyro": ["HVC Gyro X", "HVC Gyro Y", "HVC Gyro Z"],
-            "body3_gyro": ["PDU Gyro X", "PDU Gyro Y", "PDU Gyro Z"],
-            "flw_speed": "Front Left Wheel Speed",
-            "frw_speed": "Front Right Wheel Speed",
-            "blw_speed": "Back Left Wheel Speed",
-            "brw_speed": "Back Right Wheel Speed",
-            "inverter_v": "Voltage",
-            "inverter_c": "Current",
-            "inverter_rpm": "RPM",
-            "inverter_torque": "Actual Torque",
-            "apps1_v": "APPS 1 Voltage",
-            "apps2_v": "APPS 2 Voltage",
-            "bse1_v": "BSE 1 Voltage",
-            "bse2_v": "BSE 2 Voltage",
-            "sus1_v": "Suspension 1 Voltage",
-            "sus2_v": "Suspension 2 Voltage",
-            "steer_v": "Steer Voltage",
-            "hv_pack_v": "Pack Voltage Mean",
-            "hv_tractive_v": "Voltage Input into DC",
-            "hv_c": "Current Input into DC",
-            "lv_v": "LV Voltage",
-            "lv_c": "LV Current",
-            "contactor_state": "Contactor Status",
-            "avg_cell_v": "Cell Voltage Mean",
-            "avg_cell_temp": "Cell Temps Mean",
-            "hv_charge_state": "State of Charge",
-            "lv_charge_state": "LV State of Charge",
-            "cells_temp": ["Segment 1 Max", "Segment 1 Min", "Segment 2 Max", "Segment 2 Min", 
-                        "Segment 3 Max", "Segment 3 Min", "Segment 4 Max", "Segment 4 Min"],
-            "inverter_temp": "Inverter Temp",
-            "motor_temp": "Motor Temp",
-            "water_motor_temp": "Water Temp Motor",
-            "water_inverter_temp": "Water Temp Inverter",
-            "water_rad_temp": "Water Temp Radiator",
-            "rad_fan_rpm": "Radiator Fan RPM Percentage",
-            "flow_rate": "Volumetric Flow Rate"
-        }
         packet_ids = self.enumerate_packet_id(df)
+        with open(Path.cwd().joinpath("analysis").joinpath("database").joinpath("pg_to_csv.json"), "r") as pg:
+            pg_to_csv = json.load(pg)
+
         for table in table_desc:
             convert[table] = {}
             for column, (dtype, ndim) in table_desc[table].items():
                 if column not in {"time", "packet_id", "gps", } and column in pg_to_csv:
-                    if (ndim):
+                    if ndim:
                         convert[table][column] = df[pg_to_csv[column]].astype(dtype).to_numpy().tolist()
-                        # if (table == "thermal"):
-                        #     print (column, any(value > 32767 or value < -32768 for sublist in df[pg_to_csv[column]].astype(dtype).to_numpy().tolist() for value in sublist))
                     else:
                         convert[table][column] = df[pg_to_csv[column]].astype(dtype)
-                        # if (table == "thermal"):
-                        #     print (column, any(value > 32767 or value < -32768 for value in df[pg_to_csv[column]].astype(dtype)))
                 elif (column == "time"):
                     df.Year += 2000
                     first_dt = df.iloc[0]
@@ -241,12 +186,11 @@ class CSVToDB():
                 elif (column == "packet_id"):
                     convert[table][column] = packet_ids
                 elif (column == "gps"):
-                    convert[table][column] = np.column_stack((df["Longitude"], df["Latitude"])).tolist()
+                    convert[table][column] = np.column_stack((df["Latitude"], df["Longitude"])).tolist()
                 else:
                     convert[table][column] = []
 
         return convert
-
 
     #Each iteration makes a new connection to the database and sends a singular row at a time
     def insert_row_from_csv(self, df, num_rows : int):
@@ -290,7 +234,7 @@ class CSVToDB():
         for chunk in (pd.read_csv(df, chunksize=2000)):
             yield chunk.reset_index(drop = True)
 
-    def event_playback(self, file_path, table_desc, time_adjustment = True):
+    def event_playback(self, file_path, table_desc, time_adjustment = True, batch_amt = 1):
         """
         Publishes to database based on time delays from the csv
         """
@@ -305,11 +249,12 @@ class CSVToDB():
                     differences, row_dict_list = chunk_queue.get()
                     chunk_length = len(differences)
 
-                    for i in tqdm(range(chunk_length)):
-                        time.sleep(float(float(differences[i])/ 1000))
-                        if (i % 10 == 0):
+                    for i in range(chunk_length):
+                        time.sleep((float(differences[i])/ 1000))
+                        global_progress.update(1)
+                        if (i % batch_amt == 0):
                             for table in ['packet', 'dynamics', 'controls', 'pack', 'diagnostics', 'thermal']: #Through the different tables
-                                end_index = min(i + 10, chunk_length)  # Ensure we don't exceed the length
+                                end_index = min(i + batch_amt, chunk_length)  # Ensure we don't exceed the length
                                 batch_data = row_dict_list.get(table)[i:end_index]
                                 self.mqtt.publish(f'data/{table}', pickle.dumps(batch_data), qos=0)
                 else:
@@ -338,6 +283,9 @@ class CSVToDB():
         
         with ThreadPoolExecutor(max_workers=1) as setup_executor:
             with ThreadPoolExecutor(max_workers=1) as publish_executor:
+                with open(file_path, "r") as f:
+                    row_count = sum(1 for _ in f) - 1
+                global_progress = tqdm(total = row_count, desc="Row Publishing Progress")
                 setup_future = None
                 chunk_queue = Queue()
                 done = False
@@ -360,8 +308,6 @@ class CSVToDB():
                     setup_executor.shutdown(False)
                     publish_executor.shutdown(False)
 
-
-        
 if __name__ == '__main__':
 
     logging.basicConfig(level=logging.CRITICAL)
@@ -372,11 +318,8 @@ if __name__ == '__main__':
             dataSender = CSVToDB("2024_10_13__001_AutoXCompDay", db_handler=db, mqtt=mqtt)
             table_desc = get_table_column_specs()
             ## Event playback functionarlity code TODO---------------------------------------------------------------------------------
-            #dataSender.event_seperator(threshold=5) #Saves list to harddrive
+            dataSender.event_seperator(threshold=5, speed_filter=True) #Saves list to harddrive
             mqtt.connect()
             #Where the csv is stored
-            dataSender.event_playback(Path.cwd().joinpath("event_csv").joinpath("8.csv"), table_desc=table_desc)
-            
-            #dataSender.dataConvert(pd.read_csv(Path.cwd().joinpath("event_csv").joinpath("8.csv")), table_desc=table_desc)
-            #shutil.rmtree(Path.cwd().joinpath("event_csv"))
+            dataSender.event_playback(Path.cwd().joinpath("event_csv").joinpath("0.csv"), table_desc=table_desc, batch_amt=10)
        

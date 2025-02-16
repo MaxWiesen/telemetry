@@ -51,7 +51,7 @@ def set_event_time():
         with MQTTHandler('flask_app') as mqtt:
             mqtt.publish('config/flask', 'end_event')
     DBHandler.set_event_status(**request.json, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
-    return render_template('event_tracker.html', host_ip="localhost")
+    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)), event_id=request.json['event_id'])
 
 
 @app.route('/tune_data', methods=['GET', 'POST'])
