@@ -17,7 +17,8 @@ config = {}
 os.environ["event_details"] = ""
 os.environ["eid"] = "-1"
 os.environ["page_details"] = ""
-os.environ["date_id"] = "2025-02-15" #TODO replace with database load attempt
+#os.environ["date_id"] = DBHandler.simple_select('SELECT date FROM drive_day ORDER BY day_id DESC LIMIT 1')[0][0]
+os.environ["date_id"] = "2025-02-16"
 
 def config_subscribe(client, userdata, msg):
     if msg.topic == 'config/event_sync':
