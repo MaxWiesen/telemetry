@@ -18,7 +18,7 @@ os.environ["event_details"] = ""
 os.environ["eid"] = "-1"
 os.environ["page_details"] = ""
 #os.environ["date_id"] = DBHandler.simple_select('SELECT date FROM drive_day ORDER BY day_id DESC LIMIT 1')[0][0]
-os.environ["date_id"] = "2025-02-16"
+os.environ["date_id"] = "2025-02-16" #TODO revert to above for deployment. Testing only
 
 def config_subscribe(client, userdata, msg):
     if msg.topic == 'config/event_sync':
@@ -29,7 +29,7 @@ def config_subscribe(client, userdata, msg):
         if "endFlag" in msg:
             print("End Flag Detected. Closing event on DB.") #TODO remove, debug only
 
-            # TODO REMOVE, STRICTLY DEBUG (Packet Generation):
+            #Packet Generation for Testing
             #for i in tqdm(range(1, 100)):
             #    DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', data={'packet_id': i, 'time': int(time.time())})
 
@@ -49,7 +49,7 @@ def config_subscribe(client, userdata, msg):
     elif msg.topic == 'config/page_sync':
         # Convert msg to json object
         msg = msg.payload.decode()
-        # TODO safety, Ensure all fields present
+        # TODO safety, ensure all fields present?
         print("PAGE PAYLOAD: " + str(msg))
         os.environ["page_details"] = msg
 
@@ -91,7 +91,7 @@ def index():
 
     #No drive day or event running, set current page to index in page_sync and return render template for creating the drive day
     with MQTTHandler('flask_app') as mqtt:
-        mqtt.publish('config/page_sync', "index_page") #TODO RVW Publishing
+        mqtt.publish('config/page_sync', "index_page")
     return render_template('index.html')
 
 
@@ -106,7 +106,7 @@ def new_drive_day():
 @app.route('/new_event/', methods=['GET'])
 def new_event():
     with MQTTHandler('flask_app') as mqtt:
-        mqtt.publish('config/page_sync', "new_event_page") #TODO RVW Publishing Maybe New Event?
+        mqtt.publish('config/page_sync', "new_event_page")
 
     return render_template('input_screen.html', day_id=request.form.get('day_id', request.args['day_id']))
 
@@ -120,7 +120,7 @@ def create_event():
         #    mqtt.publish('config/page_sync', "running_event_page")
         return render_template('event_tracker.html',
                 host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
-                event_id = os.getenv("eid"), config_image = os.getenv("event_details")) #TODO RESOLVE ZERO
+                event_id = os.getenv("eid"), config_image = os.getenv("event_details"))
     inputs['status'] = 2
     try:
         last_packet = DBHandler.simple_select('SELECT packet_end FROM event WHERE status = 0 ORDER BY event_id DESC LIMIT 1')[0][0]
@@ -159,9 +159,9 @@ def reset_config_image():
 
     # Update correct current page to be new event
     with MQTTHandler('flask_app') as mqtt:
-        mqtt.publish('config/page_sync', "index_page")  # TODO RVW Publishing
+        mqtt.publish('config/page_sync', "index_page")
 
-    print("RET FROM RESET: Config image reset. Event has ended. Redir to Follow")
+    print("Config image reset. Event has ended. Redirect to follow.")
     return redirect(url_for('index'))
     #return json.dumps({'success': True}), 200, {'ContentType': 'application/json'}
 
@@ -176,17 +176,17 @@ def tune_data():
 @app.route('/verify_page/<string:cur_page>', methods=['GET', 'POST'])
 def verify_page(cur_page):
     print("cur_page is: " + cur_page) #TODO remove, debug only
-    print("current page_details is: " + os.getenv("page_details"))
+    print("current page_details is: " + os.getenv("page_details")) #TODO remove, debug only
 
     storedPage = os.getenv("page_details")
 
     #Check against the current stored page
-    if cur_page == storedPage: #TODO Home for testing only, change to page_details os env
+    if cur_page == storedPage:
         #If already on correct page, do not change
-        print("same\n") #TODO remove, testing only
+        print("Client on Correct Page") #TODO remove, testing only
         return '', 204
     else:
-        print("diff\n")
+        print("Client NOT on Correct Page. Redirect to follow.")
         #If page is wrong, redirect to the right page
         if storedPage == "new_event_page":
             return redirect(url_for('new_event', day_id=os.getenv("day_id"), method='new')) #temporary routing
@@ -240,13 +240,13 @@ def add_new_lap():
 def notify_listeners():
     print(config)
     with MQTTHandler('flask_app') as mqtt:
-        mqtt.publish('config/event_sync', json.dumps(config, indent=4)) #TODO revisit topic name...?
+        mqtt.publish('config/event_sync', json.dumps(config, indent=4))
 
 if __name__ == '__main__':
-    print("Today is: " + os.getenv("date_id")) #TODO remove, debug only
+    print("MAIN START. Today is: " + os.getenv("date_id"))
 
     with MQTTHandler('test', target=MQTTTarget.LOCAL, on_message=config_subscribe) as mqtt:
-        mqtt.client.subscribe('config/+') #TODO revert?
+        mqtt.client.subscribe('config/+') #TODO remove if not necessary
         mqtt.client.loop_start()
 
         if os.getenv('IN_DOCKER'):

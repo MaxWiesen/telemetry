@@ -98,9 +98,9 @@
             }
 
             //MQTT handling and function mapping TODO revert to production naming (assigned, non-arbitrary)
-            let myName = Math.floor(Math.random() * 1000).toString()
-            client = new Paho.MQTT.Client("localhost", 8080, myName); //TODO replace w env var
-            console.log("My name: " + myName)
+            let myName = Math.floor(Math.random() * 1000000).toString()
+            client = new Paho.MQTT.Client("localhost", 8080, myName); //TODO replace with production destination
+            console.log("ClientName: " + myName)
 
             //Set callback functions
             client.onConnectionLost = onConnectionLost;
@@ -110,15 +110,13 @@
             //Connect callback
             function onConnect() {
                 //Once connected, subscribe
-                console.log("onConnect"); //TODO remove, testing only
+                console.log("Status: CONNECTED"); //TODO remove, testing only
                 client.subscribe("config/event_sync")
 
-                console.log("I got this far")
                 //Send message to page sync to ensure others on same page
                 let message = new Paho.MQTT.Message("running_event_page")
                 message.destinationName = "config/page_sync"
                 client.send(message);
-                console.log("Sent oh yeah")
 
                 //Listen for other page directions
                 client.subscribe("config/page_sync")
@@ -126,20 +124,21 @@
             }
             //New message callback
             function onMessageArrived(message) {
-                console.log("Received with dest: " + message.destinationName)
                 //Screen for page sync
                 if(message.destinationName === "config/page_sync") {
                     console.log("Message from page_sync: " + message.payloadString)
-                } else {
+                } else if (message.destinationName === "config/event_sync") {
                     decodeValues(message.payloadString)
+                } else {
+                    console.log("WARNING: Message Received with Unknown Destination")
                 }
             }
             function onConnectionLost() {
-                console.log("CONNECTION LOST")
+                console.log("Status: CONNECTION LOST")
             }
             function onDisconnect() {
-                console.log("DISCONNECT")
-                //TODO when client loses connection, redirect to new page, clear active event? REVISIT
+                console.log("Status: DISCONNECTED")
+                //TODO when client loses connection, redirect to new page? Display Warning? REVISIT
             }
 
             //Change in start button state detected
@@ -177,7 +176,7 @@
             })
 
             //On initial creation
-            console.log("special case: initial state") //TODO remove, debug only
+            console.log("Initializing Local Variables") //TODO remove, debug only
             decodeValues(config_image);
             loadPrevTables()
 

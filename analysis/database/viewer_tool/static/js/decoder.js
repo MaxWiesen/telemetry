@@ -1,10 +1,10 @@
 //Decodes information from .json file and updates the client's instances
 function decodeValues(jsonObj) {
-    console.log("Decoder Triggered\nPayload: " + jsonObj) //TODO remove, DEBUG only
+    console.log("Decoder Triggered.\nPayload: " + jsonObj) //TODO remove, DEBUG only
 
     //Screen for undefined messages
     if (jsonObj === undefined) {
-        console.log("Attempted to decode undefined")
+        console.log("WARNING: Attempted to decode undefined")
         //Use encoder to populate the config image
         encodeValues(false, true, true, false, false, false)
         return
@@ -16,28 +16,21 @@ function decodeValues(jsonObj) {
         jsonObj = JSON.parse(jsonObj)
         //Cache the incoming data
         config_image = jsonObj
-        console.log("Cache: " + JSON.stringify(config_image)) //TODO debug only, remove
     } catch (error) {
         //Decoding Failed, Not Properly Formatted
-        console.log("Attempt at stringify FAILED: " + JSON.stringify(jsonObj)) //TODO debug only, remove
+        console.log("Decoder Parsing JSON Failed with Error: " + error)
     }
 
     //Update page by element
     updateStartButton()
-    console.log("P1")
     updateStopButton()
-    console.log("P2")
     updateTurn()
-    console.log("P3")
     updateAccel()
-    console.log("P4")
     updateLapTable()
-    console.log("P5")
 
     //Check for end event flag
     if (jsonObj.endFlag) {
-        console.log("Flag detected: " + jsonObj.endFlag)
-        //client.end() TODO re-vist, is it needed?
+        console.log("End Flag Received: " + jsonObj.endFlag)
         //Redirect
         //Send request to reset config_image AND server side variables
         fetch('/reset_config_image', {
@@ -50,9 +43,8 @@ function decodeValues(jsonObj) {
         .then(response => {
             if (response.redirected) {
                 window.location.href = response.url
-                console.log("config_image reset, disconnected");
             } else {
-                console.error("Failed to reset config_image", response.statusText);
+                console.error("Reset Unnecessary OR Failed. Response: ", response.statusText);
             }
         })
         .catch(error => {
@@ -73,7 +65,7 @@ function decodeValues(jsonObj) {
             startButton.setAttribute("isRunning", true)
             watch.startAt(jsonObj.timerEventTime, jsonObj.timerInternalTime);
         } else if (jsonObj.timerRunning) { //States match and timer running
-            //TODO state catch? reverse
+            //TODO state catch? reverse?
         } else { //Timer not running
             if (jsonObj.timerInternalTime !== watch.getTime()) {
                 watch.stopAt(jsonObj.timerInternalTime)
@@ -188,6 +180,6 @@ function loadPrevTables() {
         for (let i = 0; i < config_image.tables.accelStarts.length; i++) {
             watch.loadCustomAccel(config_image.tables.accelStarts[i], config_image.tables.accelStops[i])
         }
-        console.log("DONE Loading Prev Tables") //TODO remove, debug only
+        console.log("Previous Tables Loaded") //TODO remove, debug only
     }
 }

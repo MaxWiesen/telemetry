@@ -1,9 +1,10 @@
 //Encodes information into a .json file and publishes the data to mqtt
 function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, accelStatus, publishData, endFlag) {
-    console.log("Encoder Triggered") //TODO remove, debug
-    //NOTE: passing null in means DO NOT UPDATE
+    console.log("Encoder Triggered.") //TODO remove, debug
+    //NOTE: passing null (or no value) means DO NOT UPDATE that element
 
-    console.log("Config image stores this prior to encode call: " + (config_image == null ? "null" : JSON.stringify(config_image)))
+    //Debug Statement for Config Image
+    //console.log("Config image stores this prior to encode call: " + (config_image == null ? "null" : JSON.stringify(config_image)))
 
     //Create json object reflecting current state to be published
     const jsonData = {
@@ -18,7 +19,7 @@ function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, a
         "tables" : (config_image && config_image.tables) ? config_image.tables : makeEmptyTable()
     }
 
-    console.log("We just encoded: " + JSON.stringify(jsonData))
+    console.log("Encoder Storing & Sending: " + JSON.stringify(jsonData))
     //Update the cached image
     config_image = jsonData
 

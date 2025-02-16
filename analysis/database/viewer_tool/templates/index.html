@@ -41,9 +41,9 @@
     console.log("script running index.html")
 
     //MQTT handling and function mapping TODO revert to production naming (assigned, non-arbitrary)
-    let myName = Math.floor(Math.random() * 10000).toString()
-    client = new Paho.MQTT.Client("localhost", 8080, myName); //TODO replace w env var
-    console.log("My name: " + myName)
+    let myName = Math.floor(Math.random() * 1000000).toString()
+    client = new Paho.MQTT.Client("localhost", 8080, myName); //TODO replace with production destination
+    console.log("ClientName: " + myName)
 
     //Set callback functions
     client.onConnectionLost = onConnectionLost;
@@ -84,7 +84,7 @@
     }
     function onDisconnect() {
         console.log("DISCONNECT")
-        //TODO when client loses connection, redirect to new page? REVISIT
+        //TODO when client loses connection, redirect to new page? Display warning?
     }
 
     </script>

@@ -154,7 +154,6 @@ function Stopwatch(elem) {
   }
 
   this.turnAt = function(timeTurned) {
-    console.log("Turn-At triggered") //TODO remove, debug only
     if (isTurning) {
       loadTable(turn, startTime, timeFormatter(timeTurned), document.getElementById('turn-table'));
       document.getElementById('turnButton').textContent = 'Start Turn'
