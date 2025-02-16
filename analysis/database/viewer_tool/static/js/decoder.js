@@ -27,6 +27,7 @@ function decodeValues(jsonObj) {
     updateStopButton()
     updateTurn()
     updateAccel()
+    updateLapTable()
 
     //Check for end event flag
     if (jsonObj.endFlag) {
@@ -57,6 +58,7 @@ function decodeValues(jsonObj) {
     function updateStartButton() {
         //If timer is running but this object is not, update this object
         if (jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "false")) {
+
             //Set local attributes
             startButton.disabled = true
             stopButton.disabled = false
@@ -87,6 +89,63 @@ function decodeValues(jsonObj) {
             watch.stopAt(jsonObj.timerInternalTime)
         }
     }
+
+    function updateLapTable() {
+        if (!jsonObj.hasOwnProperty("laps")) return;
+        const newTable = document.createElement("table");
+        newTable.classList.add("table");
+
+        const oldTable = document.getElementById("lap-timer-table");
+        newTable.id = "lap-timer-table"
+
+        const thead = document.createElement("thead");
+        thead.classList.add("thead-dark");
+
+        newTable.appendChild(thead);
+
+        const row = document.createElement("tr");
+
+        // Create the "Lap #" header cell
+        const lapHeader = document.createElement("th");
+        lapHeader.scope = "col";
+        lapHeader.textContent = "Lap #";
+
+        // Create the "Time" header cell
+        const timeHeader = document.createElement("th");
+        timeHeader.scope = "col";
+        timeHeader.textContent = "Time";
+
+        row.appendChild(lapHeader);
+        row.appendChild(timeHeader);
+
+        // Append the row to the table
+        thead.appendChild(row);
+
+        for(let i = jsonObj.laps.length - 1; i >= 0; i--) {
+            const row = document.createElement("tr");
+
+            // Create the "Lap #" header cell
+            const lapHeader = document.createElement("th");
+            lapHeader.scope = "col";
+            lapHeader.textContent = i + 1;
+
+            // Create the "Time" header cell
+            const timeHeader = document.createElement("th");
+            timeHeader.scope = "col";
+            let dateObject = new Date(parseInt(jsonObj.laps[i]) / 1000);
+            time = `${dateObject.getHours()}:${dateObject.getMinutes()}:${dateObject.getSeconds()}.${dateObject.getMilliseconds()}`;
+            timeHeader.textContent = time;
+
+            // Append cells to the row
+            row.appendChild(lapHeader);
+            row.appendChild(timeHeader);
+
+            // Append the row to the table
+            thead.appendChild(row);
+        }
+        oldTable.parentNode.replaceChild(newTable, oldTable);
+    }
+}
 
     function updateTurn() {
         //If turn is running but this object's is not, update local

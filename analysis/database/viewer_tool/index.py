@@ -58,6 +58,8 @@ def mqtt_client_loop(mqtt):
     mqtt.client.loop_forever()
 
 
+config = {}
+
 @app.route('/', methods=['GET'])
 def index():
     #Print Environs for Debug
@@ -95,10 +97,6 @@ def index():
 
 @app.route('/new_drive_day/', methods=['GET'])
 def new_drive_day():
-    #Set the correct current page to be new drive day
-    #with MQTTHandler('flask_app') as mqtt:
-    #    mqtt.publish('config/page_sync', "new_event_page") #TODO RVW Publishing Maybe New Event?
-
     day_id = DBHandler.insert(table='drive_day', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=request.args, returning='day_id')
     os.environ["date_id"] = str(date.today())
     print("NEW_DRIVE_DAY Reset date_id to: " + os.getenv("date_id"))
@@ -246,13 +244,6 @@ def notify_listeners():
 
 if __name__ == '__main__':
     print("Today is: " + os.getenv("date_id")) #TODO remove, debug only
-
-    #Check to ensure
-
-    #TODO Note to self: Bugs fixed. Working on storing Drive Day Date & Checking once on initial
-    #TODO Do not forget end day condition (time rolls over midnight) and reroute end event MQTTs
-
-    #TODO Also remember to pass event ID in environ
 
     with MQTTHandler('test', target=MQTTTarget.LOCAL, on_message=config_subscribe) as mqtt:
         mqtt.client.subscribe('config/+') #TODO revert?

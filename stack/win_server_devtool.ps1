@@ -7,13 +7,20 @@ Write-Host "`t4) Delete the existing images and both volumes (INCLUDING GRAFANA 
 Write-Host "`tQ) Run Processor in background and start server"
 Write-Host "`tW) Delete the existing server and processors images"
 Write-Host ""
+
 # Infinite loop to process user input
 while ($true) {
     $opt = Read-Host "Choose an option (1-4, Q, W)"
     Write-Host ""
     Write-Host ""
+
     # Change directory to "ingest"
-    Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "ingest" }).FullName
+    Set-Location (Get-ChildItem -Recurse -Filter "ingest" | Select-Object -First 1).FullName
+    if (-not (Test-Path .\ingest)) {
+        Write-Host "Failed to find ingest"
+        exit
+    }
+
     switch ($opt) {
         "1" {
             # Option 1: Start the server
@@ -49,6 +56,7 @@ while ($true) {
                 $yn = Read-Host "You are about to delete the Grafana dashboards saved on this computer. Are you sure you intend to delete this? [Y/n]"
                 Write-Host ""
                 Write-Host ""
+
                 if ($yn -match "^[Yy]$") {
                     docker-compose down
                     $telemetryBackendImages = docker image ls --filter "reference=telemetry_backend" -q
@@ -74,6 +82,7 @@ while ($true) {
             # Option Q: Run Processor in background and start server
             docker-compose down
             docker-compose up -d
+
             # Change directory to "processors"
             Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "processors" }).FullName
             if (-not (Test-Path .\processors)) {
@@ -82,8 +91,10 @@ while ($true) {
             }
             docker-compose down
             docker-compose up -d
+
             $processorContainerId = (docker container ls --filter "name=telemetry_processors" -q)
             Write-Host "Processor container ID: $processorContainerId"
+
             # Change directory back to "ingest"
             Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "ingest" }).FullName
             docker-compose logs -f
@@ -101,6 +112,7 @@ while ($true) {
                 docker rmi $image
             }
             docker-compose up -d
+
             # Change directory to "processors"
             Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "processors" }).FullName
             if (-not (Test-Path .\processors)) {
@@ -109,8 +121,10 @@ while ($true) {
             }
             docker-compose down
             docker-compose up -d
+
             $processorContainerId = (docker container ls --filter "name=telemetry_processors" -q)
             Write-Host "Processor container ID: $processorContainerId"
+
             # Change directory back to "ingest"
             Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "ingest" }).FullName
             docker-compose logs -f

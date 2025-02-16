@@ -4,7 +4,7 @@ RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 FROM builder AS executor
-WORKDIR /ingest
-COPY . /ingest
+WORKDIR /lap_timer
+COPY . /lap_timer
 
-CMD ["python", "./mqtt_handler.py"]
+CMD ["python", "./main.py"]
