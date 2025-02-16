@@ -269,7 +269,7 @@ class DBHandler:
         def send_body(cur: psycopg.cursor.Cursor):
             cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
                             VALUES ({', '.join([dtype_map[table_desc[col][0]] for col in data.keys()])})
-                            {(f'RETURNING {returning}' if isinstance(returning, str) else 'RETURNING' + ', '.join(returning)) if returning else ''}''',
+                            {(f'RETURNING {returning}' if isinstance(returning, str) else 'RETURNING ' + ', '.join(returning)) if returning else ''}''',
                             list(flat_gen(data)))
             return (cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()) if returning else None
 
