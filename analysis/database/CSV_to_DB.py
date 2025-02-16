@@ -128,7 +128,7 @@ class CSVToDB():
                     (grad_brw > std_threshold)))
                 
                 filter = continous_event[i][mask]
-                continous_event[i] = filter
+                #continous_event[i] = filter #extract only high values
                 if (len(filter.index) == 0 or filter["Time"].iloc[-1] - filter["Time"].iloc[0] < 30):
                     continous_event.pop(i)
         
