@@ -4,6 +4,8 @@ import sys
 import time
 from pathlib import Path
 from tqdm import tqdm
+from datetime import date, datetime
+
 sys.path.append(str(Path(__file__).parents[3]))
 from flask import Flask, render_template, url_for, request, redirect
 
@@ -15,12 +17,13 @@ config = {}
 os.environ["event_details"] = ""
 os.environ["eid"] = "-1"
 os.environ["page_details"] = ""
+os.environ["date_id"] = "2025-02-15" #TODO replace with database load attempt
 
 def config_subscribe(client, userdata, msg):
     if msg.topic == 'config/event_sync':
         #Convert msg to json object
         msg = json.loads(msg.payload.decode())
-        #TODO safety, Ensure all fields present
+
         #Check for end event flag
         if "endFlag" in msg:
             print("End Flag Detected. Closing event on DB.") #TODO remove, debug only
@@ -30,11 +33,14 @@ def config_subscribe(client, userdata, msg):
             #    DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', data={'packet_id': i, 'time': int(time.time())})
 
             #Close the event in the database
-            last_pack = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
+            try:
+                last_pack = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
+            except:
+                last_pack = 0
             DBHandler.set_event_status(int(os.getenv("eid")), 0, packet_end=last_pack, user='electric')
+            #Re-set event ID
+            os.environ["eid"] = "-1"
 
-        else:
-            print("Key 'flag' is missing in the message payload.")
         #Store and print return
         os.environ["event_details"] = json.dumps(msg)
         print("Index Event Details: " + os.getenv("event_details")) # TODO remove, debug only
@@ -53,21 +59,34 @@ def mqtt_client_loop(mqtt):
 
 @app.route('/', methods=['GET'])
 def index():
-    #Check to see if an event already running
-    print("EVENT DETAILS: " + os.getenv("event_details")) # TODO Remove, DEBUG only
+    #Print Environs for Debug
+    print("PING Index Call, Event Details: " + os.getenv("event_details")) # TODO Remove, DEBUG only
+    print("RES Today is: " + str(date.today()) + " | And date_id stores: " + os.getenv("date_id"))
+
+    #Check if there is an active event
     try:
         os.environ["eid"] = str(DBHandler.simple_select('SELECT event_id FROM event WHERE status = 1 ORDER BY event_id DESC LIMIT 1')[0][0])
-        print("Attempted Select Returned: " + os.getenv("eid")) #TODO REMOVE, debug only
+        print("EID Database Select returns: " + os.getenv("eid"))
     except Exception as e:
-        print("Database event-running check failed with error: " + str(e))
-
-    #Event currently active, redirect
-    if os.getenv("eid") != "-1" or os.getenv("event_details"):
+        print("EID Database Select 'event-running' check failed with error: " + str(e))
+    #If an event is currently active, redirect to its page
+    if os.getenv("eid") != "-1" or os.getenv("event_details"): #TODO more robust check than -1 pls
+        print("Redirecting to Running Event.")
         return redirect(url_for('create_event'))
 
-    #TODO Check to see if a drive day has been set up
+    #If no event running but drive day has been created, set current page to event details config page
+    if os.getenv("date_id") == str(date.today()):
+        print("DEBUG: Date ID equal.")
+        #day_id = DBHandler.simple_select(table='drive_day', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', returning='day_id')
+        day_id = DBHandler.simple_select('SELECT day_id FROM drive_day ORDER BY day_id DESC LIMIT 1')[0][0]
+        print("DEBUG select day_id returns: " + str(day_id))
 
-    #Normal path, set current page to index in page_sync and return render template
+        os.environ["day_id"] = str(day_id)
+        return redirect(url_for('new_event', day_id=os.getenv("day_id"), method='new')) #temporary routing
+    else:
+        print("DEBUG: Date ID NOT equal.")
+
+    #No drive day or event running, set current page to index in page_sync and return render template for creating the drive day
     with MQTTHandler('flask_app') as mqtt:
         mqtt.publish('config/page_sync', "index_page") #TODO RVW Publishing
     return render_template('index.html')
@@ -80,8 +99,9 @@ def new_drive_day():
     #    mqtt.publish('config/page_sync', "new_event_page") #TODO RVW Publishing Maybe New Event?
 
     day_id = DBHandler.insert(table='drive_day', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=request.args, returning='day_id')
-    os.environ["day_id"] = str(day_id)
-    return redirect(url_for('.new_event', day_id=day_id, method='new'))
+    os.environ["date_id"] = str(date.today())
+    print("NEW_DRIVE_DAY Reset date_id to: " + os.getenv("date_id"))
+    return redirect(url_for('new_event', day_id=day_id, method='new'))
 
 
 @app.route('/new_event/', methods=['GET'])
@@ -101,7 +121,7 @@ def create_event():
         #    mqtt.publish('config/page_sync', "running_event_page")
         return render_template('event_tracker.html',
                 host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)),
-                event_id = 0, config_image = os.getenv("event_details")) #TODO RESOLVE ZERO
+                event_id = os.getenv("eid"), config_image = os.getenv("event_details")) #TODO RESOLVE ZERO
     inputs['status'] = 2
     try:
         last_packet = DBHandler.simple_select('SELECT packet_end FROM event WHERE status = 0 ORDER BY event_id DESC LIMIT 1')[0][0]
@@ -110,11 +130,15 @@ def create_event():
     inputs['packet_start'] = last_packet + 1
     day_id, event_id = DBHandler.insert(table='event', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL),
                                         user='electric', data=inputs, returning=['day_id', 'event_id'])
+    os.environ["eid"] = str(event_id)
+
+    print("DEBUG event_id in create_event assigns: " + str(event_id))
+
     with MQTTHandler('flask_app') as mqtt:
         mqtt.publish('config/flask', json.dumps({'event_id': event_id}, indent=4))
     #    mqtt.publish('config/page_sync', "running_event_page")
     return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET',
-                             DBTarget.LOCAL)), event_id=event_id, config_image = os.getenv("event_details"))
+                             DBTarget.LOCAL)), event_id=os.getenv("eid"), config_image = os.getenv("event_details"))
 
 
 @app.route('/set_event_time/', methods=['POST'])
@@ -138,7 +162,7 @@ def reset_config_image():
     with MQTTHandler('flask_app') as mqtt:
         mqtt.publish('config/page_sync', "index_page")  # TODO RVW Publishing
 
-    print("Config image reset. Event has ended.")
+    print("RET FROM RESET: Config image reset. Event has ended. Redir to Follow")
     return redirect(url_for('index'))
     #return json.dumps({'success': True}), 200, {'ContentType': 'application/json'}
 
@@ -166,7 +190,7 @@ def verify_page(cur_page):
         print("diff\n")
         #If page is wrong, redirect to the right page
         if storedPage == "new_event_page":
-            return redirect(url_for('.new_event', day_id=os.getenv("day_id"), method='new')) #temporary routing
+            return redirect(url_for('new_event', day_id=os.getenv("day_id"), method='new')) #temporary routing
         elif storedPage == "running_event_page":
             return redirect(url_for('create_event'))
         elif storedPage == "index_page":
@@ -219,9 +243,17 @@ def notify_listeners():
     with MQTTHandler('flask_app') as mqtt:
         mqtt.publish('event_sync', json.dumps(config, indent=4)) #TODO revisit topic name...?
 
-
 if __name__ == '__main__':
-    with MQTTHandler('testerieses', target=MQTTTarget.LOCAL, on_message=config_subscribe) as mqtt:
+    print("Today is: " + os.getenv("date_id")) #TODO remove, debug only
+
+    #Check to ensure
+
+    #TODO Note to self: Bugs fixed. Working on storing Drive Day Date & Checking once on initial
+    #TODO Do not forget end day condition (time rolls over midnight) and reroute end event MQTTs
+
+    #TODO Also remember to pass event ID in environ
+
+    with MQTTHandler('test', target=MQTTTarget.LOCAL, on_message=config_subscribe) as mqtt:
         mqtt.client.subscribe('config/+') #TODO revert?
         mqtt.client.loop_start()
 
