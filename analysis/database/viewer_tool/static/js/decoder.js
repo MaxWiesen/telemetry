@@ -24,10 +24,15 @@ function decodeValues(jsonObj) {
 
     //Update page by element
     updateStartButton()
+    console.log("P1")
     updateStopButton()
+    console.log("P2")
     updateTurn()
+    console.log("P3")
     updateAccel()
+    console.log("P4")
     updateLapTable()
+    console.log("P5")
 
     //Check for end event flag
     if (jsonObj.endFlag) {
@@ -145,7 +150,6 @@ function decodeValues(jsonObj) {
         }
         oldTable.parentNode.replaceChild(newTable, oldTable);
     }
-}
 
     function updateTurn() {
         //If turn is running but this object's is not, update local

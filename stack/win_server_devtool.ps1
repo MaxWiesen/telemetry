@@ -16,10 +16,6 @@ while ($true) {
 
     # Change directory to "ingest"
     Set-Location (Get-ChildItem -Recurse -Filter "ingest" | Select-Object -First 1).FullName
-    if (-not (Test-Path .\ingest)) {
-        Write-Host "Failed to find ingest"
-        exit
-    }
 
     switch ($opt) {
         "1" {
@@ -82,7 +78,6 @@ while ($true) {
             # Option Q: Run Processor in background and start server
             docker-compose down
             docker-compose up -d
-
             # Change directory to "processors"
             Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "processors" }).FullName
             if (-not (Test-Path .\processors)) {
@@ -91,10 +86,8 @@ while ($true) {
             }
             docker-compose down
             docker-compose up -d
-
             $processorContainerId = (docker container ls --filter "name=telemetry_processors" -q)
             Write-Host "Processor container ID: $processorContainerId"
-
             # Change directory back to "ingest"
             Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "ingest" }).FullName
             docker-compose logs -f
@@ -112,7 +105,6 @@ while ($true) {
                 docker rmi $image
             }
             docker-compose up -d
-
             # Change directory to "processors"
             Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "processors" }).FullName
             if (-not (Test-Path .\processors)) {
@@ -121,10 +113,8 @@ while ($true) {
             }
             docker-compose down
             docker-compose up -d
-
             $processorContainerId = (docker container ls --filter "name=telemetry_processors" -q)
             Write-Host "Processor container ID: $processorContainerId"
-
             # Change directory back to "ingest"
             Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "ingest" }).FullName
             docker-compose logs -f

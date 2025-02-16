@@ -240,7 +240,7 @@ def add_new_lap():
 def notify_listeners():
     print(config)
     with MQTTHandler('flask_app') as mqtt:
-        mqtt.publish('event_sync', json.dumps(config, indent=4)) #TODO revisit topic name...?
+        mqtt.publish('config/event_sync', json.dumps(config, indent=4)) #TODO revisit topic name...?
 
 if __name__ == '__main__':
     print("Today is: " + os.getenv("date_id")) #TODO remove, debug only

@@ -23,6 +23,7 @@ class MQTTHandler:
     '''
     This class handles MQTT payloads: connecting to MQTT broker and publishing or subscribing to topics
     '''
+
     def __init__(self, name='python_client', target=None, db_handler=None, on_message=None):
         '''
         :param name:    str         determining name of client to self-report to MQTT broker
