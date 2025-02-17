@@ -18,7 +18,7 @@ from psycopg.types.json import Jsonb
 from typing import Union, Tuple
 import requests
 
-sys.path.append(str(Path(__file__).parents[2]))
+sys.path.append(str(Path(__file__).parents[4]))
 
 from stack.ingest.mqtt_handler import MQTTHandler, MQTTTarget
 from analysis.sql_utils.db_handler import get_table_column_specs
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     # dbtest.test_page_sync()
     
     
-    dbtest.start_event_with_gate(1, ((30.289727, -97.736346), (30.289604, -97.736272)))
-    dbtest.add_data_for_gps("gps_test_data_2.csv", .3)
+    dbtest.start_event_with_gate(1, ((30.3870, -97.7246), (30.3868, -97.7248)))
+    # dbtest.add_data_for_gps("gps_test_data_2.csv", .3)
     
     mqtt.disconnect()

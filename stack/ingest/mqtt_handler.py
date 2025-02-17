@@ -23,6 +23,7 @@ class MQTTHandler:
     '''
     This class handles MQTT payloads: connecting to MQTT broker and publishing or subscribing to topics
     '''
+
     def __init__(self, name='python_client', target=None, db_handler=None, on_message=None):
         '''
         :param name:    str         determining name of client to self-report to MQTT broker
@@ -82,6 +83,7 @@ class MQTTHandler:
 
     def subscribe(self, topic: str = '#'):
         self.client.subscribe(topic)
+        logging.info(f"Topic: {topic}")
         self.client.loop_forever()
 
     def publish(self, *args, **kwargs):
@@ -114,15 +116,16 @@ class MQTTHandler:
             logging.info(f'\tNow logging data for event: {event_id}...')
             os.environ['EVENT_ID'] = str(event_id)
         except json.JSONDecodeError:
-            if payload != 'end_event':
+            if payload == 'end_event':
+                event_id = os.environ['EVENT_ID']
+                del os.environ['EVENT_ID']
+                try:
+                    del os.environ['RTC_START']
+                    logging.info(f'\tEnding logging for event {event_id}...')
+                except KeyError:
+                    logging.info(f'\tEnding logging for event {event_id} despite RTC_START never being set...')
+            else:
                 logging.error(f'\tUnexpected payload received: {payload}')
-            event_id = os.environ['EVENT_ID']
-            del os.environ['EVENT_ID']
-            try:
-                del os.environ['RTC_START']
-                logging.info(f'\tEnding logging for event {event_id}...')
-            except KeyError:
-                logging.info(f'\tEnding logging for event {event_id} despite RTC_START never being set...')
 
     def _data_ingest(self, payload: str, table: str):
         '''
@@ -143,7 +146,7 @@ class MQTTHandler:
             data_dict = json.loads(payload.decode().replace("'", '"'))
         # TODO: Add Protobuf ingest
 
-        DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=self.handler, data=data_dict)
+        DBHandler.insert_multi_rows(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=self.handler, data=data_dict)
 
     def _b64_ingest(self, payload: str, high_freq: bool):
         '''

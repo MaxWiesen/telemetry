@@ -5,6 +5,7 @@ import logging
 import datetime
 import os
 import psycopg
+from collections import defaultdict
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 from pathlib import Path
@@ -56,7 +57,7 @@ def get_table_column_specs(force=False, verbose=False, target=DBTarget.LOCAL, ha
     :return db_description: dict represents current layout of DB--see function description for more explanation
     """
     def find_db_description():
-        for root, dirs, files in os.walk(Path(os.getcwd()).parents[3]):
+        for root, dirs, files in os.walk(Path(os.getcwd()).parents[1]):
             for fol in dirs:
                 if fol == 'DB_description.pkl':
                     os.rmdir(f'{root}/{fol}')
@@ -269,7 +270,7 @@ class DBHandler:
         def send_body(cur: psycopg.cursor.Cursor):
             cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
                             VALUES ({', '.join([dtype_map[table_desc[col][0]] for col in data.keys()])})
-                            {(f'RETURNING {returning}' if isinstance(returning, str) else 'RETURNING' + ', '.join(returning)) if returning else ''}''',
+                            {(f'RETURNING {returning}' if isinstance(returning, str) else 'RETURNING ' + ', '.join(returning)) if returning else ''}''',
                             list(flat_gen(data)))
             return (cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()) if returning else None
 
@@ -283,9 +284,84 @@ class DBHandler:
         with handler.connect(target, user) as cnx:
             with cnx.cursor() as cur:
                 return send_body(cur)
-
+            
     @classmethod
-    def set_event_status(cls, event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', handler=None, packet_end=None, returning=None, start_time=None):
+    def insert_multi_rows(cls, table: str, target=DBTarget.LOCAL, user='analysis',  handler=None, data=None, returning=None):
+        """
+        Targets a table and sends multiple rows of data to database, with ability to get columns from the last row.
+
+        :param table:       str indicating which table the insertion is targeting
+        :param target:      str indicating target database server (according to DB_CONFIG)
+        :param user:        str indicating what user to use to sign in to server
+        :param data:        list of dictionaries dict | request.* holds data to send to database
+        :param returning:   str | list column names to return values for after request is executed
+
+        :return data:       SQL_VALUE | tuple of values in order of returning
+        """
+        if data is None:
+            raise ValueError('No data in payload.')
+        
+        if handler is None:
+            handler = cls()
+
+        table_desc = get_table_column_specs(target=target)[table]
+
+        if returning is None:
+            returning = next(iter(table_desc.keys()))   # Use name of first column of table if not explicitly passed
+        #Loop through to clean data and modify the data variable
+        for i in range(len(data)):
+            data[i] = cls.get_insert_values(table, dict(data[i]), table_desc)
+
+        partition = defaultdict(list)
+    
+        # Group dictionaries by their keys
+        for d in data:
+            # Use a tuple of sorted keys as the group identifier
+            key_tuple = tuple(sorted(d.keys()))
+            partition[key_tuple].append(d)
+        #seperate dictionary entries into a list of lists
+        partition = list(partition.values())
+        #print (partition)
+        def flat_gen(data):
+            # Dumb function to flatten dtype list to conform to psycopg requirements
+            for i in range(len(data)):
+                for col, vals in data[i].items():
+                    if col != 'gps':
+                        yield vals
+                    else:
+                        for val in vals: yield val
+
+        dtype_map = {float: '%s', int: '%s', str: '%s', bool: '%s', list: '%s', Jsonb: '%s', datetime.date: '%s',
+                     'point': 'point(%s, %s)', bytearray: '%s'}
+        
+        def send_body(cur: psycopg.cursor.Cursor):
+            for j in range(len(partition)):
+                value_list = ""
+                for i in range(len(partition[j])):
+                    data_temp = partition[j][i]
+                    single_list = ', '.join([dtype_map[table_desc[col][0]] for col in data_temp.keys()])
+                    value_list += ', '.join(["("+single_list+")"])
+                    value_list += ","
+                value_list = value_list[:-1]
+                cur.execute(f'''INSERT INTO {table} ({', '.join(partition[j][0].keys())}) 
+                            VALUES {value_list}
+                            RETURNING {returning if isinstance(returning, str) else ', '.join(returning)}''',
+                            list(flat_gen(partition[j])))
+            return cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()
+           
+        if handler.unsafe:
+            if handler.conn_pool_size == 1:
+                with handler.conn.cursor() as cur:
+                    return send_body(cur)
+            with handler.conn.connection() as conn:
+                with conn.cursor() as cur:
+                    return send_body(cur)
+        with handler.connect(target, user) as cnx:
+            with cnx.cursor() as cur:
+                return send_body(cur)
+            
+    @classmethod
+    def set_event_status(cls, event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', start_time=None, handler=None, packet_end=None, returning=None):
         """
         Targets an event_id and updates the start or end time, with ability to get columns from the affected row.
 
@@ -337,7 +413,12 @@ class DBHandler:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     with DBHandler(unsafe=True, target=DBTarget.LOCAL) as handler:
-        print(get_table_column_specs(force=True, verbose=True, handler=handler)['dynamics'])
+        print (get_table_column_specs())
+        # pg_to_csv_names = {}
+        # for table in get_table_column_specs(force=True, verbose=True, handler=handler)):
+        #     for column, (dtype, ndim) in table.items():
+        #         if column == time
+        #         convert[column] = df[].astype(dtype)
 
         # from tqdm import tqdm
         # for i in tqdm(range(1, 1000)):
