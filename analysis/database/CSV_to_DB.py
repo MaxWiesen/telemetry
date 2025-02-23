@@ -20,6 +20,8 @@ from tqdm import tqdm
 from psycopg.types.json import Jsonb
 from queue import Queue
 
+import requests
+
 sys.path.append(str(Path(__file__).parents[2]))
 
 from analysis.sql_utils.db_handler import get_table_column_specs
@@ -360,7 +362,21 @@ class CSVToDB():
                     setup_executor.shutdown(False)
                     publish_executor.shutdown(False)
 
-
+    def handle_event_start(self):
+        try:
+            event_id = (DBHandler.simple_select('SELECT event_id FROM event WHERE status = 1 ORDER BY event_id DESC LIMIT 1')[0][0])
+            if event_id == -1: raise Exception("No event is currently running")
+        # Creating a new event
+        except Exception as e:
+            sample_drive_day = {'power_limit': '', 'conditions': ''}
+            sample_event = {'driver_id': '0', 'location_id': '0', 'event_type': '0', 'car_id': '1', 'car_weight': '', 'tow_angle': '', 'camber': '', 'ride_height': '', 'ackerman_adjustment': '', 'power_limit': '', 'shock_dampening': '', 'torque_limit': '', 'frw_pressure': '', 'flw_pressure': '', 'brw_pressure': '', 'blw_pressure': '', 'day_id': '1'}
+            
+            day_id = DBHandler.insert(table='drive_day', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=sample_drive_day, returning='day_id')
+            response = requests.post("http://localhost:5000/create_event/", data=sample_event)
+            
+            with MQTTHandler('flask_app') as mqtt:
+                mqtt.publish('config/page_sync', "running_event_page")
+        
         
 if __name__ == '__main__':
 
@@ -369,14 +385,18 @@ if __name__ == '__main__':
     with DBHandler(unsafe=True, target=DBTarget.LOCAL) as db:
         with MQTTHandler(name ='event_playback_test', target = MQTTTarget.LOCAL, db_handler=db) as mqtt:
             db.connect(target = DBTarget.LOCAL, user = 'electric')
-            dataSender = CSVToDB("2024_10_13__001_AutoXCompDay", db_handler=db, mqtt=mqtt)
-            table_desc = get_table_column_specs()
-            ## Event playback functionarlity code TODO---------------------------------------------------------------------------------
-            #dataSender.event_seperator(threshold=5) #Saves list to harddrive
-            mqtt.connect()
-            #Where the csv is stored
-            dataSender.event_playback(Path.cwd().joinpath("csv_data/gps_classifier_tests").joinpath("Log__2024_10_11__05_50_47.csv"), table_desc=table_desc)
             
-            #dataSender.dataConvert(pd.read_csv(Path.cwd().joinpath("event_csv").joinpath("8.csv")), table_desc=table_desc)
-            #shutil.rmtree(Path.cwd().joinpath("event_csv"))
+            dataSender = CSVToDB("2024_10_13__001_AutoXCompDay", db_handler=db, mqtt=mqtt)
+            dataSender.handle_event_start()
+            
+            
+            # table_desc = get_table_column_specs()
+            # ## Event playback functionarlity code TODO---------------------------------------------------------------------------------
+            # #dataSender.event_seperator(threshold=5) #Saves list to harddrive
+            # mqtt.connect()
+            # #Where the csv is stored
+            # dataSender.event_playback(Path.cwd().joinpath("csv_data/gps_classifier_tests").joinpath("Log__2024_10_11__05_50_47.csv"), table_desc=table_desc)
+            
+            # #dataSender.dataConvert(pd.read_csv(Path.cwd().joinpath("event_csv").joinpath("8.csv")), table_desc=table_desc)
+            # #shutil.rmtree(Path.cwd().joinpath("event_csv"))
        
