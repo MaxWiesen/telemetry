@@ -99,6 +99,7 @@ def index():
 def new_drive_day():
     day_id = DBHandler.insert(table='drive_day', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=request.args, returning='day_id')
     os.environ["date_id"] = str(date.today())
+    os.environ["day_id"] = str(day_id)
     print("NEW_DRIVE_DAY Reset date_id to: " + os.getenv("date_id"))
     return redirect(url_for('new_event', day_id=day_id, method='new'))
 
@@ -189,6 +190,7 @@ def verify_page(cur_page):
         print("Client NOT on Correct Page. Redirect to follow.")
         #If page is wrong, redirect to the right page
         if storedPage == "new_event_page":
+            print("NOTIF (Debug) Server Day-ID stores: " + os.getenv("day_id") + " and is about to hand off redirect.");
             return redirect(url_for('new_event', day_id=os.getenv("day_id"), method='new')) #temporary routing
         elif storedPage == "running_event_page":
             return redirect(url_for('create_event'))
@@ -246,7 +248,7 @@ if __name__ == '__main__':
     print("MAIN START. Today is: " + os.getenv("date_id"))
 
     with MQTTHandler('test', target=MQTTTarget.LOCAL, on_message=config_subscribe) as mqtt:
-        mqtt.client.subscribe('config/+') #TODO remove if not necessary
+        mqtt.client.subscribe('config/+') #TODO remove '+' if not necessary
         mqtt.client.loop_start()
 
         if os.getenv('IN_DOCKER'):

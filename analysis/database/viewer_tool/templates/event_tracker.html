@@ -73,7 +73,27 @@
 
         <script>
             let clock = document.getElementById('timer');
-            let tab = document.getElementById('data-table');
+            let tab = document.getElementById('data-table'); //TODO revisit, is tab valid?
+
+            let accelTable = document.getElementById('accel-table')
+            accelTable.addEventListener('input', function(event) {
+                //Update config image with the new note contents
+                for (let i = 0; i < config_image.tables.accelStops.length; i++) {
+                    config_image.tables.accelNotes[i] = accelTable.rows[i+1].cells[3].innerText;
+                }
+                //Publish when finished
+                encodeValues(null, false, false, null, null, true)
+            })
+
+            let turnTable = document.getElementById('turn-table')
+            turnTable.addEventListener('input', function(event) {
+                //Update config image with the new note contents
+                for (let i = 0; i < config_image.tables.turnStops.length; i++) {
+                    config_image.tables.turnNotes[i] = turnTable.rows[i+1].cells[3].innerText;
+                }
+                //Publish when finished
+                encodeValues(null, false, false, null, null, true)
+            })
 
             //Create a start button and set status to not running
             let startButton = document.getElementById('startButton');

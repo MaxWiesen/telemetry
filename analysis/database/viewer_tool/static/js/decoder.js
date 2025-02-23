@@ -27,6 +27,7 @@ function decodeValues(jsonObj) {
     updateTurn()
     updateAccel()
     updateLapTable()
+    updateNotes()
 
     //Check for end event flag
     if (jsonObj.endFlag) {
@@ -167,18 +168,47 @@ function decodeValues(jsonObj) {
             watch.accelAt(jsonObj.accelStamp)
         } //Else states match, do nothing
     }
+
+    function updateNotes() {
+        //Attempt to update turn notes
+        try {
+            for (let i = 0; i < jsonObj.tables.turnNotes.length; i++) {
+                let row_ptr = turnTable.rows[i + 1].cells[3];
+                let new_note = jsonObj.tables.turnNotes[i];
+                //Only update if not already identical (preserves cursor position)
+                if (row_ptr.innerText !== new_note) {
+                    row_ptr.innerText = new_note;
+                }
+            }
+        } catch (e) {
+            console.log("Error: " + e);
+        }
+        //Attempt to update accel notes
+        try {
+            for (let i = 0; i < jsonObj.tables.accelNotes.length; i++) {
+                let row_ptr = accelTable.rows[i+1].cells[3];
+                let new_note = jsonObj.tables.accelNotes[i];
+                //Only update if not already identical (preserves cursor position)
+                if (row_ptr.innerText !== new_note) {
+                    row_ptr.innerText = new_note;
+                }
+            }
+        } catch (e) {
+            console.log("Error: " + e);
+        }
+    }
 }
 
 function loadPrevTables() {
     //NOTE only for use on initial creation
     if(config_image && config_image.tables) {
-        //Load Turns
+        //Load Turns with Notes
         for (let i = 0; i < config_image.tables.turnStarts.length; i++) {
-            watch.loadCustomTurn(config_image.tables.turnStarts[i], config_image.tables.turnStops[i])
+            watch.loadCustomTurn(config_image.tables.turnStarts[i], config_image.tables.turnStops[i], config_image.tables.turnNotes[i])
         }
-        //Load Accels
+        //Load Accels with Notes
         for (let i = 0; i < config_image.tables.accelStarts.length; i++) {
-            watch.loadCustomAccel(config_image.tables.accelStarts[i], config_image.tables.accelStops[i])
+            watch.loadCustomAccel(config_image.tables.accelStarts[i], config_image.tables.accelStops[i], config_image.tables.accelNotes[i])
         }
         console.log("Previous Tables Loaded") //TODO remove, debug only
     }

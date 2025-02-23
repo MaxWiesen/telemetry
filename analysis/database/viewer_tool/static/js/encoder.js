@@ -34,8 +34,10 @@ function encodeValues(timerStatus, updateTimerTime, updateIntTime, turnStatus, a
         return {
             turnStarts: [],
             turnStops: [],
+            turnNotes: [],
             accelStarts: [],
-            accelStops: []
+            accelStops: [],
+            accelNotes: []
         }
     }
 }

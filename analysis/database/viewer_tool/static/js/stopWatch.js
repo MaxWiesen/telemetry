@@ -43,13 +43,14 @@ function Stopwatch(elem) {
     return minutes + ':' + seconds + '.' + ms;
   };
 
-  function loadTable(turn, time_start, time_stop, table) {
+  function loadTable(turn, time_start, time_stop, table, note) {
     let row = table.insertRow(-1);
     let participantCell = row.insertCell(0);
     let timeStartCell = row.insertCell(1);
     let timeStopCell = row.insertCell(2);
     let notesCell = row.insertCell(3);
     notesCell.contentEditable = "true";
+    notesCell.innerHTML = (note) ? note : "";
     participantCell.innerHTML = turn;
     timeStartCell.innerHTML = time_start;
     timeStopCell.innerHTML = time_stop;
@@ -148,8 +149,8 @@ function Stopwatch(elem) {
     }
   };
 
-  this.loadCustomTurn = function(start, end) {
-    loadTable(turn, start, end, document.getElementById('turn-table'));
+  this.loadCustomTurn = function(start, end, note) {
+    loadTable(turn, start, end, document.getElementById('turn-table'), note);
     turn++;
   }
 
@@ -174,8 +175,8 @@ function Stopwatch(elem) {
     return isAccel
   }
 
-  this.loadCustomAccel = function(start, end) {
-    loadTable(accel, start, end, document.getElementById('accel-table'));
+  this.loadCustomAccel = function(start, end, note) {
+    loadTable(accel, start, end, document.getElementById('accel-table'), note);
     accel++;
   }
 
