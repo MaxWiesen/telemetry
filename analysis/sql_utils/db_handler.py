@@ -320,12 +320,11 @@ class DBHandler:
                 q = f'''UPDATE event SET status = {status} WHERE event_id = {event_id}'''
 
             cur.execute(q)
-            return None
 
         if handler.unsafe:
             if handler.conn_pool_size == 1:
                 with handler.conn.cursor() as cur:
-                    return send_body(cur)
+                    send_body(cur)
             with handler.conn.connection() as conn:
                 with conn.cursor() as cur:
                     return send_body(cur)

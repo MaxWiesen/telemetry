@@ -126,8 +126,8 @@
     </div>
     <script>
 
-    //MQTT handling and function mapping TODO revert to production naming (assigned, non-arbitrary)
-    let myName = Math.floor(Math.random() * 1000000).toString()
+    //MQTT handling and function mapping
+    let myName = crypto.randomUUID();
     client = new Paho.MQTT.Client("localhost", 8080, myName); //TODO replace with production destination
     console.log("ClientName: " + myName)
 
