@@ -16,10 +16,7 @@ while ($true) {
 
     # Change directory to "ingest"
     Set-Location (Get-ChildItem -Recurse -Filter "ingest" | Select-Object -First 1).FullName
-    if (-not (Test-Path .\ingest)) {
-        Write-Host "Failed to find ingest"
-        exit
-    }
+
 
     switch ($opt) {
         "1" {

@@ -69,7 +69,7 @@ def turn_data():
     data = request.data
     json_object = json.loads(data)
     print(json_object)
-    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)))
+    return render_template('event_tracker.html', host_ip="localhost")
 
 
 @app.route('/accel_data', methods=['GET', 'POST'])
@@ -77,7 +77,7 @@ def accel_data():
     data = request.data
     json_object = json.loads(data)
     print(json_object)
-    return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET', DBTarget.LOCAL)))
+    return render_template('event_tracker.html', host_ip="localhost")
 
 
 @app.route('/texas_tune/', methods=['GET', 'POST'])
