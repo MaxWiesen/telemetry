@@ -66,7 +66,7 @@ function Stopwatch(elem) {
       data.push(rowData);
     }
     let xhr = new XMLHttpRequest();
-    xhr.open('POST', 'http://3.143.24.233/:5000/turn_data');
+    xhr.open('POST', 'http://localhost/:5000/turn_data');
     xhr.setRequestHeader('Content-Type', 'application/json', 'charset=UTF-8');
     xhr.send(JSON.stringify(data));
   }

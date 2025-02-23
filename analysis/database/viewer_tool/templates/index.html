@@ -42,7 +42,7 @@
 
     //MQTT handling and function mapping TODO revert to production naming (assigned, non-arbitrary)
     let myName = Math.floor(Math.random() * 1000000).toString()
-    client = new Paho.MQTT.Client("3.143.24.233", 9001, myName); //TODO replace with production destination
+    client = new Paho.MQTT.Client("localhost", 9001, myName); //TODO replace with production destination
     console.log("ClientName: " + myName)
 
     //Set callback functions

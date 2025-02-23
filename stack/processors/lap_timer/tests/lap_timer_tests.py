@@ -53,7 +53,7 @@ class LapTimerDataTester(DataTester):
     
     def start_event_with_gate(self, event_id: str, gate: tuple[float, float]):
         config = {"event_id": event_id, "gate": gate, "status": 0, "start_packet": 0}
-        self.mqtt.publish(f'config/test', json.dumps(config))
+        self.mqtt.publish(f'config/lap_timer_gates', json.dumps(config))
         return
     
     def test_page_sync(self):

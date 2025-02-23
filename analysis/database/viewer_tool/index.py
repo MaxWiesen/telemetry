@@ -44,6 +44,10 @@ def config_subscribe(client, userdata, msg):
 
         #Store and print return
         os.environ["event_details"] = json.dumps(msg)
+        
+        config.update(msg)
+        print(config)
+        
         print("Index Event Details: " + os.getenv("event_details")) # TODO remove, debug only
 
     elif msg.topic == 'config/page_sync':
@@ -57,8 +61,6 @@ def mqtt_client_loop(mqtt):
     # Start the MQTT client loop (this will run forever in the background)
     mqtt.client.loop_forever()
 
-
-config = {}
 
 @app.route('/', methods=['GET'])
 def index():
@@ -97,6 +99,7 @@ def index():
 
 @app.route('/new_drive_day/', methods=['GET'])
 def new_drive_day():
+    print("DRIVE DAY: ", request.args) #! DEBUG
     day_id = DBHandler.insert(table='drive_day', target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', data=request.args, returning='day_id')
     os.environ["date_id"] = str(date.today())
     print("NEW_DRIVE_DAY Reset date_id to: " + os.getenv("date_id"))
@@ -113,8 +116,10 @@ def new_event():
 
 @app.route('/create_event/', methods=['POST', 'GET'])
 def create_event():
+    
     if request.method == 'POST':
         inputs = request.form.to_dict()
+        print("EVENT: ", inputs) #! DEBUG
     else:
         #with MQTTHandler('flask_app') as mqtt:
         #    mqtt.publish('config/page_sync', "running_event_page")
@@ -230,13 +235,15 @@ def create_gates():
 
 @app.route('/new_lap/', methods=['POST'])
 def add_new_lap():
+    print("CONFIG", config)
     if 'laps' not in config:
         config['laps'] = []
     data = request.form
     if 'time' in data:
-        config['laps'].append(data['time'])
+        config['laps'].append(int(data['time']) - config['timerEventTime'])
         notify_listeners()
     return json.dumps({'success':True}), 200, {'ContentType':'application/json'}
+
 def notify_listeners():
     print(config)
     with MQTTHandler('flask_app') as mqtt:

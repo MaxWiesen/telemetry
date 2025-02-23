@@ -20,7 +20,7 @@ def convert_to_epoch(row):
     )
     return int(dt.timestamp())
 
-file_path = os.path.join(Path(__file__).parent, 'Log__2024_10_11__05_50_47.csv')
+file_path = os.path.join(Path(__file__).parent, '../../../../csv_data/gps_classifier_tests', 'Log__2024_10_11__05_50_47.csv')
 
 if not os.path.exists(file_path):
     raise FileNotFoundError(f"File {file_path} not found.")

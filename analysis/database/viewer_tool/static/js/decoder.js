@@ -1,4 +1,6 @@
 //Decodes information from .json file and updates the client's instances
+lap_times = []
+
 function decodeValues(jsonObj) {
     console.log("Decoder Triggered.\nPayload: " + jsonObj) //TODO remove, DEBUG only
 
@@ -54,7 +56,7 @@ function decodeValues(jsonObj) {
 
     function updateStartButton() {
         //If timer is running but this object is not, update this object
-        if (jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "false")) {
+        if (jsonObj.hasOwnProperty("timerRunning") && jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "false")) {
 
             //Set local attributes
             startButton.disabled = true
@@ -64,18 +66,18 @@ function decodeValues(jsonObj) {
             turnButton.disabled = false
             startButton.setAttribute("isRunning", true)
             watch.startAt(jsonObj.timerEventTime, jsonObj.timerInternalTime);
-        } else if (jsonObj.timerRunning) { //States match and timer running
+        } else if (jsonObj.hasOwnProperty("timerRunning") && jsonObj.timerRunning) { //States match and timer running
             //TODO state catch? reverse?
         } else { //Timer not running
-            if (jsonObj.timerInternalTime !== watch.getTime()) {
-                watch.stopAt(jsonObj.timerInternalTime)
+            if (jsonObj.hasOwnProperty("timerInternalTime") && jsonObj.timerInternalTime !== watch.getTime()) {
+                watch.stopAt(jsonObj.hasOwnProperty("useInternalTime") && jsonObj.useInternalTime === true ? parseInt(watch.getTime()) : jsonObj.timerInternalTime)
             }
         }
     }
 
     function updateStopButton() {
         //If timer is not running but this object is, update object
-        if (!jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "true")) {
+        if (jsonObj.hasOwnProperty("timerRunning") && !jsonObj.timerRunning && (startButton.getAttribute("isRunning") === "true")) {
             //Update states to match by stopping
             startButton.disabled = false
             stopButton.disabled = true
@@ -83,7 +85,7 @@ function decodeValues(jsonObj) {
             accelButton.disabled = true
             turnButton.disabled = true
             startButton.setAttribute("isRunning", false)
-            watch.stopAt(jsonObj.timerInternalTime)
+            watch.stopAt(jsonObj.hasOwnProperty("useInternalTime") && jsonObj.useInternalTime === true ? parseInt(watch.getTime()) : jsonObj.timerInternalTime)
         }
     }
 
@@ -129,9 +131,10 @@ function decodeValues(jsonObj) {
             // Create the "Time" header cell
             const timeHeader = document.createElement("th");
             timeHeader.scope = "col";
-            let dateObject = new Date(parseInt(jsonObj.laps[i]) / 1000);
-            time = `${dateObject.getHours()}:${dateObject.getMinutes()}:${dateObject.getSeconds()}.${dateObject.getMilliseconds()}`;
-            timeHeader.textContent = time;
+            // let dateObject = new Date(parseInt(jsonObj.laps[i]) / 1000);
+            // time = `${dateObject.getHours()}:${dateObject.getMinutes()}:${dateObject.getSeconds()}.${dateObject.getMilliseconds()}`;
+            console.log(jsonObj.laps)
+            timeHeader.textContent = formatTime(parseInt(jsonObj.laps[i]));
 
             // Append cells to the row
             row.appendChild(lapHeader);
@@ -157,12 +160,12 @@ function decodeValues(jsonObj) {
 
     function updateAccel() {
         //If accel is running but this object's is not, update local
-        if (jsonObj.accelRunning && !watch.isAccel()) {
+        if (jsonObj.hasOwnProperty("accelRunning") && jsonObj.accelRunning && !watch.isAccel()) {
             //Start the accel
             watch.accelAt(jsonObj.accelStamp)
 
         //If accel is not running but this object's is, update local
-        } else if (!jsonObj.accelRunning && watch.isAccel()) {
+        } else if (jsonObj.hasOwnProperty("accelRunning") && !jsonObj.accelRunning && watch.isAccel()) {
             //Stop the accel
             watch.accelAt(jsonObj.accelStamp)
         } //Else states match, do nothing
@@ -183,3 +186,8 @@ function loadPrevTables() {
         console.log("Previous Tables Loaded") //TODO remove, debug only
     }
 }
+
+const formatTime = ms => {
+    const [h, m, s, msRem] = [Math.floor(ms / 3600000), Math.floor(ms % 3600000 / 60000), Math.floor(ms % 60000 / 1000), ms % 1000];
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}::${String(msRem).padStart(3, '0')}`;
+  };
