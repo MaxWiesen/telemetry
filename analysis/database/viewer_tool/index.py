@@ -10,6 +10,8 @@ from stack.ingest.mqtt_handler import MQTTHandler
 
 app = Flask(__name__)
 
+config = {}
+
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
@@ -45,7 +47,7 @@ def create_event():
 def set_event_time():
     if request.json['status'] == 0:
         try:
-            request.json['packet_end'] = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0]
+            request.json['packet_end'] = DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0]
         except IndexError:
             request.json['packet_end'] = 1
         with MQTTHandler('flask_app') as mqtt:
@@ -89,6 +91,21 @@ def vcu_parameters():
 @app.route('/gates/', methods=['POST'])
 def create_gates():
     pass
+
+@app.route('/new_lap/', methods=['POST'])
+def add_new_lap():
+    if "laps" not in config:
+        config["laps"] = []
+    data = request.form
+    if "time" in data:
+        config["laps"].append(data["time"])
+        notify_listeners()
+    return json.dumps({'success':True}), 200, {'ContentType':'application/json'} 
+        
+def notify_listeners():
+    print(config)
+    with MQTTHandler('flask_app') as mqtt:
+        mqtt.publish('event_sync', json.dumps(config, indent=4))
 
 
 if __name__ == '__main__':

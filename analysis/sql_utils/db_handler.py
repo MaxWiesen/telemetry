@@ -270,7 +270,7 @@ class DBHandler:
         def send_body(cur: psycopg.cursor.Cursor):
             cur.execute(f'''INSERT INTO {table} ({', '.join(data.keys())})
                             VALUES ({', '.join([dtype_map[table_desc[col][0]] for col in data.keys()])})
-                            {(f'RETURNING {returning}' if isinstance(returning, str) else 'RETURNING' + ', '.join(returning)) if returning else ''}''',
+                            {(f'RETURNING {returning}' if isinstance(returning, str) else 'RETURNING ' + ', '.join(returning)) if returning else ''}''',
                             list(flat_gen(data)))
             return (cur.fetchone()[0] if isinstance(returning, str) else cur.fetchone()) if returning else None
 
@@ -361,7 +361,7 @@ class DBHandler:
                 return send_body(cur)
             
     @classmethod
-    def set_event_status(cls, event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', handler=None, packet_end=None, returning=None):
+    def set_event_status(cls, event_id: int, status: int, target=DBTarget.LOCAL, user='analysis', handler=None, packet_end=None, returning=None, start_time=None):
         """
         Targets an event_id and updates the start or end time, with ability to get columns from the affected row.
 
@@ -378,7 +378,7 @@ class DBHandler:
             handler = cls()
 
         def send_body(cur: psycopg.cursor.Cursor):
-            now = int(time.time() * 1000)
+            now = start_time if start_time else int(time.time() * 1000)
             if status == 1:
                 # Set event status to running
                 q = f'''UPDATE event SET start_time = {now}, status = 1
@@ -413,8 +413,9 @@ class DBHandler:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     with DBHandler(unsafe=True, target=DBTarget.LOCAL) as handler:
-        print (get_table_column_specs())
-        from tqdm import tqdm
-        for i in tqdm(range(1, 1000)):
-            DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', handler=handler, data={'packet_id': i, 'time': int(time.time())})
-        print(DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0])
+        print(get_table_column_specs(force=True, verbose=True, handler=handler)['dynamics'])
+
+        # from tqdm import tqdm
+        # for i in tqdm(range(1, 1000)):
+        #     DBHandler.insert('packet', target=DBTarget.LOCAL, user='electric', handler=handler, data={'packet_id': i, 'time': int(time.time())})
+        # print(DBHandler.simple_select('SELECT packet_id FROM packet ORDER BY packet_id DESC LIMIT 1')[0][0])
