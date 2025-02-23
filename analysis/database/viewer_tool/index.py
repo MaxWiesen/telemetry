@@ -138,7 +138,6 @@ def create_event():
 
     with MQTTHandler('flask_app') as mqtt:
         mqtt.publish('config/flask', json.dumps({'event_id': event_id}, indent=4))
-    #    mqtt.publish('config/page_sync', "running_event_page")
     return render_template('event_tracker.html', host_ip=DBTarget.resolve_target(os.getenv('SERVER_TARGET',
                              DBTarget.LOCAL)), event_id=os.getenv("event_id"), config_image = os.getenv("event_details"))
 
@@ -231,7 +230,6 @@ def vcu_parameters():
 def create_gates():
     pass
 
-
 @app.route('/new_lap/', methods=['POST'])
 def add_new_lap():
     if 'laps' not in config:
@@ -241,6 +239,7 @@ def add_new_lap():
         config['laps'].append(data['time'])
         notify_listeners()
     return json.dumps({'success':True}), 200, {'ContentType':'application/json'}
+
 def notify_listeners():
     print(config)
     with MQTTHandler('flask_app') as mqtt:

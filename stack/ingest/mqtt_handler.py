@@ -136,17 +136,19 @@ class MQTTHandler:
         '''
         if not os.getenv('EVENT_ID'):
             logging.error(f'\tAttempt made to send data without an event_id cached.')
-
-        logging.debug(f'\tData received. Inserting to Database now...')
-
         try:
             data_dict = pickle.loads(payload)
-            logging.debug('\tPickle Payload received, likely coming from debug source...')
+            #logging.debug('\tPickle Payload received, likely coming from debug source...')
         except pickle.UnpicklingError:
             data_dict = json.loads(payload.decode().replace("'", '"'))
         # TODO: Add Protobuf ingest
-
-        DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=self.handler, data=data_dict)
+        if (isinstance(data_dict, list)):
+            if (len(data_dict) > 1):
+                DBHandler.insert_multi_rows(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=self.handler, data=data_dict)
+            else:
+                DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=self.handler, data=data_dict[0])
+        else:
+            DBHandler.insert(table, target=os.getenv('SERVER_TARGET', DBTarget.LOCAL), user='electric', handler=self.handler, data=data_dict)
 
     def _b64_ingest(self, payload: str, high_freq: bool):
         '''
