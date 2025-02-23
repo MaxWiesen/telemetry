@@ -16,119 +16,128 @@ while ($true) {
 
     # Change directory to "ingest"
     Set-Location (Get-ChildItem -Recurse -Filter "ingest" | Select-Object -First 1).FullName
-
-
-    switch ($opt) {
-        "1" {
-            # Option 1: Start the server
-            docker-compose down
-            docker-compose up
-            break
-        }
-        "2" {
-            # Option 2: Delete the existing images
-            docker-compose down
-            $telemetryBackendImages = docker image ls --filter "reference=telemetry_backend" -q
-            foreach ($image in $telemetryBackendImages) {
-                docker rmi $image
+    if (-not (Test-Path .\ingest))
+    {
+        switch ($opt)
+        {
+            "1" {
+                # Option 1: Start the server
+                docker-compose down
+                docker-compose up
+                break
             }
-            docker-compose up
-            break
-        }
-        "3" {
-            # Option 3: Delete the existing images and telemetry_db volume
-            docker-compose down
-            $telemetryBackendImages = docker image ls --filter "reference=telemetry_backend" -q
-            foreach ($image in $telemetryBackendImages) {
-                docker rmi $image
-            }
-            docker volume rm telemetry_db
-            docker volume create telemetry_db
-            docker-compose up
-            break
-        }
-        "4" {
-            # Option 4: Delete the existing images and both volumes (INCLUDING GRAFANA DASHBOARDS!)
-            while ($true) {
-                $yn = Read-Host "You are about to delete the Grafana dashboards saved on this computer. Are you sure you intend to delete this? [Y/n]"
-                Write-Host ""
-                Write-Host ""
-
-                if ($yn -match "^[Yy]$") {
-                    docker-compose down
-                    $telemetryBackendImages = docker image ls --filter "reference=telemetry_backend" -q
-                    foreach ($image in $telemetryBackendImages) {
-                        docker rmi $image
-                    }
-                    docker volume rm telemetry_db
-                    docker volume create telemetry_db
-                    docker volume rm grafana_storage
-                    docker volume create grafana_storage
-                    docker-compose up
-                    break
-                } elseif ($yn -match "^[Nn]$") {
-                    Write-Host "Crisis Averted!"
-                    break
-                } else {
-                    Write-Host "Invalid input, please try again."
+            "2" {
+                # Option 2: Delete the existing images
+                docker-compose down
+                $telemetryBackendImages = docker image ls --filter "reference=telemetry_backend" -q
+                foreach ($image in $telemetryBackendImages)
+                {
+                    docker rmi $image
                 }
+                docker-compose up
+                break
             }
-            break
-        }
-        "Q" {
-            # Option Q: Run Processor in background and start server
-            docker-compose down
-            docker-compose up -d
-
-            # Change directory to "processors"
-            Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "processors" }).FullName
-            if (-not (Test-Path .\processors)) {
-                Write-Host "Failed to find processors"
-                exit
+            "3" {
+                # Option 3: Delete the existing images and telemetry_db volume
+                docker-compose down
+                $telemetryBackendImages = docker image ls --filter "reference=telemetry_backend" -q
+                foreach ($image in $telemetryBackendImages)
+                {
+                    docker rmi $image
+                }
+                docker volume rm telemetry_db
+                docker volume create telemetry_db
+                docker-compose up
+                break
             }
-            docker-compose down
-            docker-compose up -d
+            "4" {
+                # Option 4: Delete the existing images and both volumes (INCLUDING GRAFANA DASHBOARDS!)
+                while ($true)
+                {
+                    $yn = Read-Host "You are about to delete the Grafana dashboards saved on this computer. Are you sure you intend to delete this? [Y/n]"
+                    Write-Host ""
+                    Write-Host ""
 
-            $processorContainerId = (docker container ls --filter "name=telemetry_processors" -q)
-            Write-Host "Processor container ID: $processorContainerId"
-
-            # Change directory back to "ingest"
-            Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "ingest" }).FullName
-            docker-compose logs -f
-            break
-        }
-        "W" {
-            # Option W: Delete the existing server and processors images
-            docker-compose down
-            $telemetryBackendImages = docker image ls --filter "reference=telemetry_backend" -q
-            foreach ($image in $telemetryBackendImages) {
-                docker rmi $image
+                    if ($yn -match "^[Yy]$")
+                    {
+                        docker-compose down
+                        $telemetryBackendImages = docker image ls --filter "reference=telemetry_backend" -q
+                        foreach ($image in $telemetryBackendImages)
+                        {
+                            docker rmi $image
+                        }
+                        docker volume rm telemetry_db
+                        docker volume create telemetry_db
+                        docker volume rm grafana_storage
+                        docker volume create grafana_storage
+                        docker-compose up
+                        break
+                    }
+                    elseif ($yn -match "^[Nn]$")
+                    {
+                        Write-Host "Crisis Averted!"
+                        break
+                    }
+                    else
+                    {
+                        Write-Host "Invalid input, please try again."
+                    }
+                }
+                break
             }
-            $telemetryProcessorsImages = docker image ls --filter "reference=telemetry_processors" -q
-            foreach ($image in $telemetryProcessorsImages) {
-                docker rmi $image
+            "Q" {
+                # Option Q: Run Processor in background and start server
+                docker-compose down
+                docker-compose up -d
+                # Change directory to "processors"
+                Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "processors" }).FullName
+                if (-not (Test-Path .\processors))
+                {
+                    Write-Host "Failed to find processors"
+                    exit
+                }
+                docker-compose down
+                docker-compose up -d
+                $processorContainerId = (docker container ls --filter "name=telemetry_processors" -q)
+                Write-Host "Processor container ID: $processorContainerId"
+                # Change directory back to "ingest"
+                Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "ingest" }).FullName
+                docker-compose logs -f
+                break
             }
-            docker-compose up -d
-
-            # Change directory to "processors"
-            Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "processors" }).FullName
-            if (-not (Test-Path .\processors)) {
-                Write-Host "Failed to find processors"
-                exit
+            "W" {
+                # Option W: Delete the existing server and processors images
+                docker-compose down
+                $telemetryBackendImages = docker image ls --filter "reference=telemetry_backend" -q
+                foreach ($image in $telemetryBackendImages)
+                {
+                    docker rmi $image
+                }
+                $telemetryProcessorsImages = docker image ls --filter "reference=telemetry_processors" -q
+                foreach ($image in $telemetryProcessorsImages)
+                {
+                    docker rmi $image
+                }
+                docker-compose up -d
+                # Change directory to "processors"
+                Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "processors" }).FullName
+                if (-not (Test-Path .\processors))
+                {
+                    Write-Host "Failed to find processors"
+                    exit
+                }
+                docker-compose down
+                docker-compose up -d
+                $processorContainerId = (docker container ls --filter "name=telemetry_processors" -q)
+                Write-Host "Processor container ID: $processorContainerId"
+                # Change directory back to "ingest"
+                Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "ingest" }).FullName
+                docker-compose logs -f
+                break
             }
-            docker-compose down
-            docker-compose up -d
-
-            $processorContainerId = (docker container ls --filter "name=telemetry_processors" -q)
-            Write-Host "Processor container ID: $processorContainerId"
-
-            # Change directory back to "ingest"
-            Set-Location (Get-ChildItem -Recurse -Directory | Where-Object { $_.Name -eq "ingest" }).FullName
-            docker-compose logs -f
-            break
-        }
-        default {
-            Write-Host "Invalid input, please try again."
+            default {
+                Write-Host "Invalid input, please try again."
+            }
         }
     }
 }
